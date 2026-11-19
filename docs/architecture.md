@@ -67,11 +67,44 @@ When the database already holds data, a backup is written to `data/backups/` bef
 - **Reproducibility:** each run stores its full config snapshot and hash in `scoring_runs`. `trend_scores` is append-only. `--verify` recomputes a run from its own snapshot and compares exactly.
 - **Rules:** bump `SCORER_VERSION` for any logic change, and bump the linker version when the taxonomy changes. Otherwise new aliases would add mentions to past dates.
 
+## Backtesting (Stage 5)
+
+`liquidmexx backtest [--horizon N] [--no-save]` evaluates detectors at daily times T (12:00 UTC) for horizons of 1, 7 and 30 days.
+
+| Guard | How |
+|---|---|
+| Ranking uses only the past | The detector sees only rows with `available_at <= T` |
+| The outcome uses only the outcome window | Mentions in `(T, T+H]`, read as of `T+H`, with the same eligibility rules as scoring |
+| No fake emergence when a source starts | The label counts only sources that were active on ≥ 7 of the 14 days before T **and** on ≥ 70% of the outcome days |
+| No future label in a decision | Walk-forward trains only on dates with `t + H <= T_test` (embargo) and uses an expanding window. Thresholds are training-score quantiles |
+| No invented history | Evaluation dates need ≥ 8 days of history before T and a complete outcome window after it. Otherwise the result is `insufficient_history` |
+
+- **Label:** a trend counts as emerged when its future daily rate is at least 2× its own 14-day baseline **and** it has ≥ 3 weighted mentions in the outcome window.
+- **Universe:** trends with an eligible mention in the 14 days before T. Trends that first appear after T are reported as `unseen_emergers`.
+- **Detectors:** `scorer:<version>`, `volume_only` and a seeded `random`. Each is a function from `as_of` to `{trend: score}`, ready for Stage 6.
+- **Metrics:** precision@5 and @10 with raw hit counts, base rate, lift, Spearman ρ against the future log-lift, walk-forward out-of-sample precision/recall/F1, and the backfill share.
+- **Storage:** runs are stored append-only in `backtest_runs` and `backtest_points`, with the config snapshot and the data watermark.
+
+**Known bias:** the HN backfill kept only stories that eventually reached 3+ points, which is hindsight. Results with `backfill_share` near 1.0 are therefore optimistic.
+
+### Current result (2026-11-19): the scorer loses to the volume baseline
+
+Measured on Hacker News only, with every input from backfill. The scorer is **not** tuned to fit these numbers.
+
+| Horizon | `scorer:s2` top-5 hits | `volume_only` top-5 hits | `random` |
+|---|---|---|---|
+| 1 day (21 dates) | 4 / 105 | **9 / 105** | 0 / 105 |
+| 7 days (15 dates) | 1 / 75 | **5 / 75** | 0 / 75 |
+| 30 days | insufficient history | insufficient history | insufficient history |
+
+The scorer finds trends that are busy *now*, and those spikes usually revert. Plain mention volume predicts next-day and next-week emergence better on this data.
+The sample is small (16 positives at 1 day, 28 at 7 days) and relies on the biased backfill, so neither detector's numbers are reliable yet.
+Re-run `liquidmexx backtest` once live collection has 7 or more days of data from every source. Until a detector beats `volume_only` out of sample, scores are descriptive only and must not drive posting.
+
 ## Planned later stages
 
 | Stage | What it adds |
 |---|---|
-| 5 | Backtester |
 | 6 | Detector comparison |
 | 7 | Narrative engines |
 | 8 | Claude research and content |

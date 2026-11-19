@@ -40,6 +40,7 @@ uv run liquidmexx collect --due           # run every source whose interval has 
 uv run liquidmexx collect --source github # run one source now
 uv run liquidmexx link                    # link new items to trends/aliases (also runs after collect)
 uv run liquidmexx score                   # deterministic trend scores from stored history (no network)
+uv run liquidmexx backtest                # point-in-time backtests (1/7/30 days) vs baselines
 uv run liquidmexx backfill github-stars   # honest star-history backfill from starred_at timestamps
 uv run liquidmexx backfill hackernews --days 30
 uv run liquidmexx status                  # counts, last runs, today's spend vs caps
@@ -58,6 +59,7 @@ Scheduled collection uses launchd. Install it yourself with the commands in [`do
 | `config/pricing.yaml` | Unit prices, with source URL and retrieval date |
 | `config/models.yaml` | LLM model IDs, task-to-tier routing, escalation, caching/batch settings |
 | `config/scoring.yaml` | Scoring windows, exclusions, clone-farm discount, sub-score weights |
+| `config/backtest.yaml` | Backtest horizons, outcome label, walk-forward settings |
 | `config/env.template` | Template for `.env`, with placeholders only |
 
 ## Development

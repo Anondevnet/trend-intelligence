@@ -146,3 +146,14 @@ def load_scoring(config_dir: Path | None = None) -> dict[str, Any]:
 
 def source_credibility(config_dir: Path | None = None) -> dict[str, float]:
     return {name: s.credibility for name, s in load_sources(config_dir).items()}
+
+
+def load_backtest(config_dir: Path | None = None) -> dict[str, Any]:
+    cfg = _load_yaml("backtest.yaml", config_dir)
+    for key in ("horizons_days", "label", "top_k", "walk_forward", "eval_hour_utc", "step_days",
+                "random_seed"):
+        if key not in cfg:
+            raise ValueError(f"backtest.yaml is missing {key!r}")
+    if not 0 <= int(cfg["eval_hour_utc"]) <= 23:
+        raise ValueError("eval_hour_utc must be 0-23")
+    return cfg

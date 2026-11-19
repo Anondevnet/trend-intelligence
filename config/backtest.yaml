@@ -1,0 +1,28 @@
+# Stage 5 backtesting. Question asked: "did the trends a detector ranked highly at time T
+# actually emerge over (T, T+H]?" -- using only data available at T for the ranking and only
+# data in (T, T+H], read as of T+H, for the outcome. Deterministic, no network, no LLM.
+
+horizons_days: [1, 7, 30]       # yesterday-to-today, 7-day, 30-day
+eval_hour_utc: 12               # one evaluation point per day at 12:00 UTC
+step_days: 1
+
+# Outcome label ("did it emerge?"), counted with the same eligibility rules as scoring
+# (baseline catalogs excluded, HN points gate, clone-farm discount) and only over sources
+# that were collecting both before T and during the outcome window.
+label:
+  lift_min: 2.0                 # future daily rate >= 2x the trend's own 14-day baseline rate
+  min_future_mentions: 3        # ... and at least 3 weighted mentions in the outcome window
+  min_future_coverage: 0.7      # source must have activity in >= 70% of the outcome days
+
+# Universe at T: trends with >= 1 eligible mention in the 14 days before T. Trends that
+# first appear after T are reported as "unseen emergers" and kept out of precision/recall.
+top_k: [5, 10]
+
+walk_forward:
+  min_train_dates: 5            # expanding window; train dates need t + H <= test date (embargo)
+  min_train_positives: 3
+  # Candidate alert thresholds = these quantiles of the training scores (works for any
+  # detector's scale). Best train F1 wins; ties go to the stricter threshold.
+  threshold_quantiles: [0.5, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995]
+
+random_seed: 7                  # seeded random-ranking baseline

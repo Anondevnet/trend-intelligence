@@ -10,7 +10,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from liquidmexx.backtest import Backtester
 from liquidmexx.config import (
+    load_backtest,
     load_budgets,
     load_scoring,
     load_sources,
@@ -190,6 +192,43 @@ def cmd_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backtest(args: argparse.Namespace) -> int:
+    conn = open_db()
+    cfg = load_backtest()
+    bt = Backtester(conn, load_scoring(), source_credibility(), cfg)
+    horizons = args.horizon or [int(h) for h in cfg["horizons_days"]]
+    print(f"backtest config {bt.hash}  data watermark {bt.data_watermark()}")
+
+    def f(v: object) -> str:
+        return "   -  " if v is None else f"{v:6.3f}" if isinstance(v, float) else f"{v!s:>6}"
+
+    for h in horizons:
+        results = bt.run(h)
+        dates = results[0].dates if results else []
+        span = f"{dates[0][:10]}..{dates[-1][:10]}" if dates else "none"
+        print(f"\n== horizon {h}d  eval dates {len(dates)} ({span})")
+        for res in results:
+            m = res.metrics
+            if m["status"] != "ok":
+                print(f"  {res.detector:<12} {m['status']}: {m['reason']}")
+                continue
+            wf = m["walk_forward"]
+            wf_txt = (f"WF prec {f(wf['precision'])} rec {f(wf['recall'])} alerts {wf['alerts']}"
+                      if wf["status"] == "ok" else f"WF {wf['status']}")
+            print(f"  {res.detector:<12} base {f(m['base_rate'])}  P@5 {f(m['precision_at_5'])}"
+                  f" ({m['hits_at_5']})  P@10 {f(m['precision_at_10'])}"
+                  f"  rho {f(m['spearman_mean'])}  {wf_txt}")
+        if results and results[0].metrics["status"] == "ok":
+            m0 = results[0].metrics
+            print(f"  label sources {m0['label_sources']}  positives {m0['positives']}/"
+                  f"{m0['n_points']}  unseen emergers {m0['unseen_emergers']}"
+                  f"  backfill share {f(m0['backfill_share_mean'])}")
+        if not args.no_save:
+            ids = [bt.save(r) for r in results]
+            print(f"  saved backtest runs {ids}")
+    return 0
+
+
 def cmd_backup(_: argparse.Namespace) -> int:
     conn = open_db()
     path = backup(conn, get_settings().data_dir / "backups", label="manual")
@@ -222,6 +261,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--verify", type=int, metavar="RUN_ID",
                    help="recompute a stored run and compare exactly")
     s.set_defaults(func=cmd_score)
+    bt = sub.add_parser("backtest", help="point-in-time backtest of detectors (no network)")
+    bt.add_argument("--horizon", type=int, action="append", help="days (repeatable)")
+    bt.add_argument("--no-save", action="store_true")
+    bt.set_defaults(func=cmd_backtest)
     sub.add_parser("status", help="counts, last runs, spend").set_defaults(func=cmd_status)
     sub.add_parser("backup", help="snapshot the database").set_defaults(func=cmd_backup)
     return p

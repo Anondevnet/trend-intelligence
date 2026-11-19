@@ -43,6 +43,7 @@ class Mention:
     source_id: str
     available_at: str
     weight: float          # quality weight (1.0, or clone-farm discount)
+    is_backfill: bool = False
 
 
 @dataclass
@@ -106,7 +107,7 @@ class Scorer:
             out[int(r["raw_item_id"])] = float(r["value"])
         return out
 
-    def _coverage(self, as_of: str) -> dict[str, list[str]]:
+    def coverage(self, as_of: str) -> dict[str, list[str]]:
         """Sorted available_at of each source's non-baseline items (collection activity)."""
         first_run_ok = set(self.cfg.get("first_run_counts_for", []))
         cov: dict[str, list[str]] = defaultdict(list)
@@ -120,7 +121,7 @@ class Scorer:
             cov[r["source_id"]].append(r["available_at"])
         return cov
 
-    def _mentions(self, as_of: str) -> tuple[list[Mention], dict[str, int]]:
+    def eligible_mentions(self, as_of: str) -> tuple[list[Mention], dict[str, int]]:
         cfg = self.cfg
         first_run_ok = set(cfg.get("first_run_counts_for", []))
         gates: dict[str, dict[str, Any]] = cfg.get("engagement_gates", {})
@@ -164,7 +165,7 @@ class Scorer:
                 weight = farm_weight
                 excluded["clone_farm_discounted"] += 1
             out.append(Mention(int(r["trend_id"]), int(r["raw_item_id"]), src,
-                               r["available_at"], weight))
+                               r["available_at"], weight, bool(r["is_backfill"])))
         return out, excluded
 
     # ---- scoring ---------------------------------------------------------------------------
@@ -180,8 +181,8 @@ class Scorer:
         acc = cfg["acceleration"]
         weights: dict[str, float] = cfg["weights"]
 
-        mentions, excluded = self._mentions(as_of)
-        coverage = self._coverage(as_of)
+        mentions, excluded = self.eligible_mentions(as_of)
+        coverage = self.coverage(as_of)
         slugs = {int(r["id"]): r["slug"] for r in self.conn.execute("SELECT id, slug FROM trends")}
 
         def bucket_of(ts: str) -> int | None:

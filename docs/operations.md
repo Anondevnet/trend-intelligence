@@ -26,6 +26,7 @@ uv run liquidmexx sources   # enabled / usable / credentials present (true or fa
 uv run liquidmexx score     # score trends now from stored history (no network); stores a run
 uv run liquidmexx score --as-of 2026-11-12T12:00:00Z --no-save   # what we knew then
 uv run liquidmexx score --verify 2                               # recompute run 2 exactly
+uv run liquidmexx backtest                                       # 1/7/30-day backtests, all detectors
 ```
 
 ## Backups
