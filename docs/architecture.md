@@ -113,6 +113,12 @@ Re-run `liquidmexx backtest` once live collection has 7 or more days of data fro
 
 The settings were fixed before any comparison was run. They must not be tuned to the backtest.
 
+**Pre-registration lock.** `config/detectors.lock` holds the SHA-256 of `config/detectors.yaml`. It was committed before the first comparison run, and `liquidmexx compare` refuses to run if the file no longer matches.
+
+- Detector settings are not changed after seeing results.
+- Every comparison outcome is reported as it comes out, including the case where nothing beats `volume_only`.
+- A deliberate change needs a new lock committed *before* the next run, with its reason recorded.
+
 `liquidmexx compare` runs every detector and gives each one a verdict against `volume_only`:
 
 - **INSUFFICIENT DATA** if there are fewer than 7 evaluation dates, fewer than 20 positive labels, the backfill share is above 0.5, or there is no usable history.

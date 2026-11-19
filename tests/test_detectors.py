@@ -319,3 +319,26 @@ def test_compare_cli_refuses_before_enough_live_data(
     assert cli.main(["compare", "--no-save"]) == 2
     assert "not running" in capsys.readouterr().out
     assert conn.execute("SELECT COUNT(*) FROM backtest_runs").fetchone()[0] == 0
+
+
+# ------------------------------------------------------------- pre-registration lock
+
+
+def test_shipped_detector_config_matches_the_lock() -> None:
+    from liquidmexx.detectors.comparison import check_lock
+    from liquidmexx.settings import PROJECT_ROOT
+    assert check_lock(PROJECT_ROOT / "config") is None
+
+
+def test_lock_refuses_changed_settings(tmp_path: Any) -> None:
+    import shutil
+
+    from liquidmexx.detectors.comparison import check_lock
+    from liquidmexx.settings import PROJECT_ROOT
+    for name in ("detectors.yaml", "detectors.lock"):
+        shutil.copy(PROJECT_ROOT / "config" / name, tmp_path / name)
+    with (tmp_path / "detectors.yaml").open("a") as fh:
+        fh.write("\n# tweak after seeing results\n")
+    assert "does not match the lock" in (check_lock(tmp_path) or "")
+    (tmp_path / "detectors.lock").unlink()
+    assert "missing" in (check_lock(tmp_path) or "")

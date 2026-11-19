@@ -1,0 +1,8 @@
+# Pre-registration lock for the Stage 6 comparison (added before any comparison run).
+# `liquidmexx compare` refuses to run unless config/detectors.yaml hashes to this value.
+# Changing detector settings after seeing results is not allowed; a deliberate, pre-registered
+# change needs a new lock commit made BEFORE the next comparison run, with the reason below.
+sha256: aba394f7c719600a179c368f884eac737eb074515e7d72cd8f7b1279898f6f53
+locked_from_commit: 1c5f8bc
+locked_at: 2026-11-19
+reason: initial settings, fixed before any comparison run

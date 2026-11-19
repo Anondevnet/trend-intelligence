@@ -7,11 +7,13 @@ worse out of sample (walk-forward F1).
 
 from __future__ import annotations
 
+import hashlib
 import math
 import sqlite3
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 INSUFFICIENT = "INSUFFICIENT DATA"
@@ -157,3 +159,21 @@ def readiness(conn: sqlite3.Connection, cfg: Mapping[str, Any]) -> tuple[bool, d
     days = live_days(conn)
     ready = sum(1 for d in days.values() if d >= int(cfg["min_live_days"]))
     return ready >= int(cfg["min_ready_sources"]), days
+
+
+def check_lock(config_dir: Path) -> str | None:
+    """None if detectors.yaml matches the committed lock, else why the comparison must not run."""
+    lock = config_dir / "detectors.lock"
+    if not lock.exists():
+        return "config/detectors.lock is missing"
+    expected = None
+    for line in lock.read_text(encoding="utf-8").splitlines():
+        if line.startswith("sha256:"):
+            expected = line.split(":", 1)[1].strip()
+    if not expected:
+        return "config/detectors.lock has no sha256 line"
+    actual = hashlib.sha256((config_dir / "detectors.yaml").read_bytes()).hexdigest()
+    if actual != expected:
+        return (f"config/detectors.yaml (sha256 {actual[:12]}) does not match the lock"
+                f" ({expected[:12]}); detector settings may not change after results are seen")
+    return None

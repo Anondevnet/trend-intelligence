@@ -25,6 +25,7 @@ from liquidmexx.config import (
 from liquidmexx.costs.budget import BudgetGuard
 from liquidmexx.db import backup, open_db
 from liquidmexx.detectors import compare, readiness
+from liquidmexx.detectors.comparison import check_lock
 from liquidmexx.publishing import (
     DryRunTransport,
     Publisher,
@@ -271,6 +272,10 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 def cmd_compare(args: argparse.Namespace) -> int:
     """Stage 6 detector comparison. Refuses to run until enough live data exists."""
     conn = open_db()
+    lock_problem = check_lock(get_settings().config_dir)
+    if lock_problem:
+        print(f"not running: {lock_problem}")
+        return 3
     dcfg = load_detectors()
     ccfg = dcfg["comparison"]
     ready, days = readiness(conn, ccfg)
@@ -285,7 +290,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
     cfg = load_backtest()
     bt = Backtester(conn, load_scoring(), source_credibility(), cfg, detectors=dcfg)
     horizons = args.horizon or [int(h) for h in cfg["horizons_days"]]
-    print(f"compare config {bt.hash}  data watermark {bt.data_watermark()}")
+    print(f"compare config {bt.hash} (detectors.yaml matches the lock)"
+          f"  data watermark {bt.data_watermark()}")
+    print("Report every verdict as-is, including when nothing beats the baseline.")
     for h in horizons:
         results = bt.run(h)
         print(f"\n== horizon {h}d")
