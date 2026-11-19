@@ -1,0 +1,34 @@
+# Daily spending caps (USD), enforced in code by liquidmexx.costs.budget.BudgetGuard.
+# The "day" is the UTC day (matches X's billing/dedup window).
+# warn_fraction: log a warning once spend crosses this share of the cap.
+
+timezone_note: "Caps reset at 00:00 UTC (19:00/20:00 America/Detroit)."
+
+providers:
+  x:
+    daily_cap_usd: 0.15
+    warn_fraction: 0.8
+    initial_credit_usd: 5.00   # informational; remaining = credit - recorded spend
+  anthropic:
+    daily_cap_usd: 2.00
+    warn_fraction: 0.8
+  github:
+    daily_cap_usd: 0.0         # free API; requests are still counted
+  hackernews:
+    daily_cap_usd: 0.0
+  huggingface:
+    daily_cap_usd: 0.0
+  arxiv:
+    daily_cap_usd: 0.0
+  mcp_registry:
+    daily_cap_usd: 0.0
+  defillama:
+    daily_cap_usd: 0.0
+  polymarket:
+    daily_cap_usd: 0.0
+  solana_rpc:
+    daily_cap_usd: 0.0
+  rss:
+    daily_cap_usd: 0.0
+  reddit:
+    daily_cap_usd: 0.0

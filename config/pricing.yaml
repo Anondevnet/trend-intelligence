@@ -1,0 +1,36 @@
+# Unit prices used for cost accounting. Prices change -- re-verify before relying on them.
+# Each block records where and when the numbers were read.
+
+x:
+  source: "https://docs.x.com/x-api/getting-started/pricing"
+  retrieved: "2026-11-19"
+  model: "pay-per-use; reads per resource, writes per request; same resource re-read within a UTC day is not re-billed"
+  unit_usd:
+    post_read: 0.005
+    user_read: 0.010
+    owned_read: 0.001
+    post_create: 0.015
+    post_create_with_url: 0.200
+    post_create_summoned: 0.010
+    user_interaction_create: 0.015   # likes/follows -- never automated by this app
+    media_metadata: 0.005
+    counts_recent: 0.005
+    trends: 0.010
+  monthly_post_read_cap: 3000000
+
+anthropic:
+  source: "Claude API reference bundled with Claude Code (cached 2026-11-03); verify at platform.claude.com pricing"
+  retrieved: "2026-11-19"
+  usd_per_million_tokens:
+    claude-opus-5-5: {input: 4.00, output: 20.00, cache_read: 0.20}
+    claude-sonnet-5-5: {input: 2.00, output: 10.00, cache_read: 0.10}
+    claude-haiku-5-5: {input: 0.10, output: 0.50}
+  batch_discount: 0.5
+  roles:
+    research: claude-opus-5-5
+    drafting: claude-opus-5-5
+    clustering_check: claude-haiku-5-5
+    quality_check: claude-haiku-5-5
+
+free_sources:
+  note: "GitHub, HN Algolia, Hugging Face, arXiv, MCP Registry, DeFiLlama, Polymarket Gamma, Solana public RPC, RSS: no per-call charge; requests are counted for rate-limit health."

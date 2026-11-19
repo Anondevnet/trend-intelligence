@@ -1,0 +1,108 @@
+# Source adapters. Each can be enabled/disabled independently.
+# interval_minutes: how often `liquidmexx collect --due` runs this source.
+# credibility: prior weight (0-1) used by scoring later; tuned by backtests, not by hand.
+# All sources here are free public APIs. X discovery/search is intentionally absent (off at launch).
+
+github:
+  enabled: true
+  interval_minutes: 60
+  credibility: 0.7
+  params:
+    # New repositories created in the last N days, per query, sorted by stars.
+    new_repo_window_days: 14
+    min_stars: 15
+    per_query: 30
+    queries:
+      ai: ["topic:llm", "topic:ai-agents", "topic:mcp", "topic:agents", "topic:local-llm",
+           "\"mcp server\" in:name,description", "\"ai agent\" in:description"]
+      crypto: ["topic:solana", "topic:defi", "topic:ethereum", "topic:depin",
+               "topic:polymarket", "topic:prediction-markets", "topic:crypto-trading"]
+    # Re-measure stars/forks of already-seen repos (velocity). Capped per run.
+    refresh_max_repos: 150
+    refresh_max_age_days: 45
+
+hackernews:
+  enabled: true
+  interval_minutes: 30
+  credibility: 0.6
+  params:
+    lookback_minutes: 120     # overlapping windows; raw items are deduplicated
+    min_points_refresh: 5     # refresh points/comments for stories above this
+    refresh_max_stories: 200
+    refresh_max_age_hours: 72
+
+huggingface:
+  enabled: true
+  interval_minutes: 120
+  credibility: 0.6
+  params:
+    models_limit: 60
+    spaces_limit: 40
+
+arxiv:
+  enabled: true
+  interval_minutes: 360
+  credibility: 0.8
+  params:
+    categories: ["cs.AI", "cs.CL", "cs.LG", "cs.MA", "cs.CR"]
+    max_results: 100
+
+mcp_registry:
+  enabled: true
+  interval_minutes: 360
+  credibility: 0.5
+  params:
+    max_pages: 10
+    page_size: 100
+
+defillama:
+  enabled: true
+  interval_minutes: 360
+  credibility: 0.8
+  params:
+    min_tvl_usd: 1000000      # only record protocols above this TVL
+    chains: true
+
+polymarket:
+  enabled: true
+  interval_minutes: 60
+  credibility: 0.6
+  params:
+    events_limit: 100         # top active events by 24h volume (public read-only data)
+
+solana_rpc:
+  enabled: true
+  interval_minutes: 60
+  credibility: 0.9
+  params:
+    performance_samples: 10
+
+rss:
+  enabled: true
+  interval_minutes: 60
+  credibility: 0.6
+  params:
+    feeds:
+      - {id: coindesk, url: "https://www.coindesk.com/arc/outboundfeeds/rss/", category: crypto}
+      - {id: theblock, url: "https://www.theblock.co/rss.xml", category: crypto}
+      - {id: blockworks, url: "https://blockworks.com/feed", category: crypto}
+      - {id: decrypt, url: "https://decrypt.co/feed", category: crypto}
+      - {id: thedefiant, url: "https://thedefiant.io/api/feed", category: defi}
+      - {id: solana_news, url: "https://solana.com/news/rss.xml", category: solana}
+      - {id: polymarket_news, url: "https://news.polymarket.com/feed", category: prediction-markets}
+      - {id: hf_blog, url: "https://huggingface.co/blog/feed.xml", category: ai}
+      - {id: openai_news, url: "https://openai.com/news/rss.xml", category: ai}
+      - {id: google_ai, url: "https://blog.google/innovation-and-ai/technology/ai/rss/", category: ai}
+      - {id: simonwillison, url: "https://simonwillison.net/atom/everything/", category: ai}
+      - {id: latent_space, url: "https://latent.space/feed", category: ai}
+
+reddit:
+  # Requires REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET / REDDIT_USER_AGENT (OAuth app-only).
+  # Stays off without credentials; never scrapes HTML.
+  enabled: false
+  interval_minutes: 60
+  credibility: 0.4
+  params:
+    subreddits: ["solana", "CryptoCurrency", "defi", "ethdev", "Polymarket",
+                 "LocalLLaMA", "MachineLearning", "singularity", "ClaudeAI", "AI_Agents"]
+    limit: 50

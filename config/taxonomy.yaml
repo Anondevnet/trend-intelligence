@@ -1,0 +1,93 @@
+# Seed narratives used to link collected items to trends.
+# match: phrase  = case-insensitive, whole-word/phrase match (default)
+#        exact   = case-sensitive whole-word match (for ambiguous short names)
+# requires_context: the item must ALSO contain one of these words (disambiguation).
+# Entity trends (specific repos/models/servers) are created automatically when an
+# item on one platform links to an entity on another (cross-platform confirmation).
+
+context_words:
+  # "token"/"protocol" deliberately excluded: too ambiguous with LLM tokens / network protocols.
+  crypto: &crypto ["crypto", "cryptocurrency", "blockchain", "onchain", "on-chain", "defi",
+                   "solana", "ethereum", "bitcoin", "web3", "dex", "stablecoin", "validator",
+                   "nft", "memecoin"]
+  ai: &ai ["ai", "llm", "model", "agent", "agents", "gpt", "claude", "inference", "neural",
+           "machine learning", "transformer", "open-source", "open source"]
+
+categories:
+  ai-agents:
+    - name: "AI agents"
+      aliases: ["ai agent", "ai agents", "autonomous agent", "autonomous agents", "agentic",
+                "multi-agent", "agent framework", "agent swarm"]
+    - name: "Autonomous coding agents"
+      aliases: ["coding agent", "coding agents", "ai coding", "autonomous coding", "claude code",
+                "codex cli", "software engineering agent", "swe-bench"]
+    - name: "Computer-use / browser agents"
+      aliases: ["computer use", "computer-use", "browser agent", "browser agents", "web agent"]
+    - name: "Agent payments"
+      aliases: ["agent payments", "agentic payments", "x402", "agent commerce", "agent wallet",
+                "agent wallets"]
+  mcp:
+    - name: "Model Context Protocol"
+      aliases: ["model context protocol", "mcp server", "mcp servers", "mcp client"]
+      exact: ["MCP"]
+      requires_context: *ai
+  local-ai:
+    - name: "Local AI / on-device models"
+      aliases: ["local llm", "local llms", "on-device", "llama.cpp", "ollama", "mlx", "gguf",
+                "quantization", "quantized", "small language model"]
+  open-models:
+    - name: "Open-weight models"
+      aliases: ["open-weight", "open weights", "open-weights", "open source model",
+                "open-source model", "apache-2.0 model"]
+  ai-research:
+    - name: "Reasoning models"
+      aliases: ["reasoning model", "reasoning models", "test-time compute", "chain-of-thought",
+                "chain of thought", "inference-time scaling"]
+    - name: "AI safety & security"
+      aliases: ["prompt injection", "jailbreak", "ai safety", "alignment", "red teaming",
+                "model security"]
+  crypto-ai:
+    - name: "Crypto x AI"
+      aliases: ["decentralized ai", "onchain ai", "on-chain ai", "ai crypto", "crypto ai",
+                "ai agents on solana", "deai", "verifiable inference", "zkml"]
+  solana:
+    - name: "Solana ecosystem"
+      aliases: ["solana"]
+    - name: "Firedancer / Solana clients"
+      aliases: ["firedancer", "frankendancer", "agave", "validator client"]
+    - name: "Solana memecoins & launchpads"
+      aliases: ["pump.fun", "pumpfun", "letsbonk", "memecoin launchpad", "bonding curve"]
+  defi:
+    - name: "Perpetual DEXs"
+      aliases: ["perp dex", "perps dex", "perpetual dex", "perpetuals exchange", "hyperliquid",
+                "onchain perps", "on-chain perps"]
+    - name: "Stablecoins"
+      aliases: ["stablecoin", "stablecoins", "genius act", "yield-bearing stablecoin"]
+    - name: "Restaking & liquid staking"
+      aliases: ["restaking", "liquid staking", "liquid restaking", "lst", "lrt", "eigenlayer"]
+    - name: "Real-world assets (RWA)"
+      aliases: ["real-world assets", "real world assets", "tokenized treasuries",
+                "tokenization", "tokenized stocks"]
+      exact: ["RWA", "RWAs"]
+  depin:
+    - name: "DePIN"
+      aliases: ["depin", "decentralized physical infrastructure", "decentralized compute",
+                "decentralized gpu"]
+  prediction-markets:
+    - name: "Prediction markets"
+      aliases: ["prediction market", "prediction markets", "polymarket", "kalshi",
+                "event contracts"]
+  crypto-infra:
+    - name: "Bitcoin L2s & BTCfi"
+      aliases: ["bitcoin l2", "bitcoin layer 2", "btcfi", "bitcoin defi"]
+    - name: "Ethereum scaling / L2s"
+      aliases: ["layer 2", "rollup", "rollups", "based rollup", "ethereum l2"]
+      exact: ["L2", "L2s"]
+      requires_context: *crypto
+    - name: "Crypto security incidents"
+      aliases: ["exploit", "exploited", "drained", "hack", "hacked", "rug pull", "rugpull"]
+      requires_context: *crypto
+  trading:
+    - name: "Crypto trading & ETFs"
+      aliases: ["crypto etf", "bitcoin etf", "ether etf", "solana etf", "spot etf",
+                "funding rate", "open interest", "liquidations"]
