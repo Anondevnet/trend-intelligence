@@ -1,0 +1,45 @@
+# Stage 4 trend scoring. Deterministic, no LLM, no network: every input is read from
+# stored history with available_at <= as_of. This whole block (plus source credibility from
+# sources.yaml, scorer and linker versions) is hashed into config_hash and snapshotted with
+# each scoring run, so a stored score can always be recomputed and verified.
+
+linker_version: v1          # which trend_mentions to read; bump when the taxonomy changes
+
+window_hours: 24            # "current" window: (as_of - 24h, as_of]
+baseline_days: 14           # previous 14 rolling 24h buckets form the baseline
+
+# Baseline items. The first live run of a source returns its existing catalog (DeFiLlama
+# protocols, MCP servers, RSS back-issues, 14 days of GitHub repos...). Those items are
+# excluded from all counts. Exception: sources whose first run is a short lookback of
+# genuinely new items rather than a catalog.
+first_run_counts_for: [hackernews]   # HN first run = 24h of new stories, and backfill skipped them
+
+# Comparability gates. The HN backfill only kept stories that eventually reached >= 3 points,
+# so a live story counts only once >= 3 points is on record by as_of. (Conservative: recent
+# stories that have not been refreshed yet are under-counted, never over-counted.)
+engagement_gates:
+  hackernews: {metric: points, min: 3, applies_to_backfill: false}
+
+# GitHub clone farms: the same repo name under >= min_owners different owners, counted only
+# from GitHub items known by as_of. Matching mentions are discounted, not deleted.
+clone_farm:
+  min_owners: 3
+  weight: 0.1
+
+acceleration:
+  min_baseline_days: 7      # a source needs items in >= 7 of the 14 baseline buckets
+  min_window_count: 3       # below this, z is capped at 0 (no "spike" from 1-2 mentions)
+  z_cap: 4.0                # z of 4+ maps to a full sub-score
+
+volume_scale: 5.0           # norm = 1 - exp(-weighted_mentions / scale)
+breadth_cap: 4              # 4+ distinct sources = full cross-platform confirmation
+novelty_tau_days: 3.0       # norm = exp(-age_days / tau) * min(window_mentions / min_window_count, 1);
+                            # needs source coverage before the first mention
+
+# Composite = 100 * sum(weight * sub_score). A missing sub-score counts as 0 (never
+# renormalised up); confidence = share of weight that was actually computable.
+weights:
+  acceleration: 0.40
+  volume: 0.25
+  breadth: 0.20
+  novelty: 0.15

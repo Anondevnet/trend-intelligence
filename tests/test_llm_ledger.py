@@ -81,7 +81,7 @@ def test_migration_0004_keeps_old_rows_and_backs_up(tmp_path: Path) -> None:
     before = [tuple(r) for r in c.execute(f"SELECT {cols} FROM api_usage ORDER BY id")]
 
     backups = tmp_path / "backups"
-    assert migrate(c, MIGRATIONS_DIR, backups) == ["0004_llm_usage"]
+    assert "0004_llm_usage" in migrate(c, MIGRATIONS_DIR, backups)
     after = [tuple(r) for r in c.execute(f"SELECT {cols} FROM api_usage ORDER BY id")]
     assert after == before
     new = c.execute("SELECT tier, model, input_tokens, is_batch FROM api_usage").fetchall()

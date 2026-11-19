@@ -10,12 +10,20 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from liquidmexx.config import load_budgets, load_sources, load_taxonomy
+from liquidmexx.config import (
+    load_budgets,
+    load_scoring,
+    load_sources,
+    load_taxonomy,
+    source_credibility,
+)
 from liquidmexx.costs.budget import BudgetGuard
 from liquidmexx.db import backup, open_db
 from liquidmexx.redaction import setup_logging
+from liquidmexx.scoring import SCORER_VERSION, Scorer, verify_run
 from liquidmexx.settings import get_settings
 from liquidmexx.sources import ADAPTERS
+from liquidmexx.timeutil import normalize_iso, now_iso
 from liquidmexx.trends.identity import link_new_items, seed_taxonomy
 
 log = logging.getLogger("liquidmexx")
@@ -134,6 +142,13 @@ def cmd_status(_: argparse.Namespace) -> int:
               f"  lifetime ${s.lifetime_spent_usd:.4f}"
               + (f"  credit left ${s.credit_remaining_usd:.2f}"
                  if s.credit_remaining_usd is not None else ""))
+    run = q("SELECT id, as_of, config_hash FROM scoring_runs ORDER BY id DESC LIMIT 1").fetchone()
+    if run:
+        print(f"\n== top scored trends (scoring run {run['id']}, as_of {run['as_of']})")
+        for r in q("SELECT t.slug, s.score, s.confidence FROM trend_scores s JOIN trends t"
+                   " ON t.id=s.trend_id WHERE s.run_id=? ORDER BY s.score DESC, t.slug LIMIT 10",
+                   (run["id"],)):
+            print(f"  {r['score']:6.1f}  conf {r['confidence']:.2f}  {r['slug']}")
     print("\n== top trends by mentions, last 24h (excludes first-run catalog baselines)")
     for r in q("SELECT t.slug, COUNT(*) n, COUNT(DISTINCT m.source_id) src FROM trend_mentions m"
                " JOIN trends t ON t.id=m.trend_id JOIN v_raw_items r ON r.id=m.raw_item_id"
@@ -141,7 +156,37 @@ def cmd_status(_: argparse.Namespace) -> int:
                "'%Y-%m-%dT%H:%M:%S.000000Z','now','-1 day') GROUP BY t.id ORDER BY n DESC"
                " LIMIT 15"):
         print(f"  {r['n']:>4} mentions  {r['src']} sources  {r['slug']}")
-    print("\n(note: counts are raw evidence, not scores -- scoring arrives in Stage 4)")
+    print("\n(mention counts are raw evidence; scores come from `liquidmexx score`)")
+    return 0
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    conn = open_db()
+    if args.verify is not None:
+        problems = verify_run(conn, args.verify)
+        for line in problems[:20]:
+            print("MISMATCH", line)
+        print(f"verify run {args.verify}: " + ("OK, reproduced exactly" if not problems
+                                               else f"{len(problems)} mismatches"))
+        return 0 if not problems else 1
+    as_of = normalize_iso(args.as_of) if args.as_of else now_iso()
+    scorer = Scorer(conn, load_scoring(), source_credibility())
+    results, excluded = scorer.score(as_of)
+    print(f"as_of {as_of}  scorer {SCORER_VERSION}  config {scorer.hash}  "
+          f"trends scored {len(results)}")
+    print("excluded/discounted mentions: " + ", ".join(f"{k}={v}" for k, v in excluded.items()))
+    print(f"{'score':>6} {'conf':>5} {'accel':>6} {'vol':>5} {'brd':>5} {'nov':>5}  trend")
+
+    def fmt(v: float | None) -> str:
+        return "  -  " if v is None else f"{v:5.2f}"
+
+    for s in results[: args.top]:
+        c = s.components
+        print(f"{s.score:6.1f} {s.confidence:5.2f} {fmt(c['acceleration']):>6} {fmt(c['volume'])}"
+              f" {fmt(c['breadth'])} {fmt(c['novelty'])}  {s.slug}")
+    if not args.no_save:
+        run_id = scorer.save(as_of, results)
+        print("saved as scoring run", run_id if run_id is not None else "(already stored)")
     return 0
 
 
@@ -170,6 +215,13 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--max-repos", type=int, default=20)
     b.add_argument("--max-stars", type=int, default=2000)
     b.set_defaults(func=cmd_backfill)
+    s = sub.add_parser("score", help="score trends from stored history (no network)")
+    s.add_argument("--as-of", help="ISO UTC timestamp to score at (default: now)")
+    s.add_argument("--top", type=int, default=20)
+    s.add_argument("--no-save", action="store_true", help="print only, do not store")
+    s.add_argument("--verify", type=int, metavar="RUN_ID",
+                   help="recompute a stored run and compare exactly")
+    s.set_defaults(func=cmd_score)
     sub.add_parser("status", help="counts, last runs, spend").set_defaults(func=cmd_status)
     sub.add_parser("backup", help="snapshot the database").set_defaults(func=cmd_backup)
     return p

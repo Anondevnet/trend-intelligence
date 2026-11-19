@@ -27,7 +27,7 @@ hackernews:
   credibility: 0.6
   params:
     lookback_minutes: 120     # overlapping windows; raw items are deduplicated
-    min_points_refresh: 5     # refresh points/comments for stories above this
+    min_points_refresh: 3     # refresh points/comments at the scoring gate (matches backfill min_points=3)
     refresh_max_stories: 200
     refresh_max_age_hours: 72
 

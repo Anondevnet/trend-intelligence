@@ -23,6 +23,9 @@ A failing source is recorded as `error` or `partial` and doesn't stop the others
 ```bash
 uv run liquidmexx status    # row counts, last run per source (with errors), spend vs caps, top trends
 uv run liquidmexx sources   # enabled / usable / credentials present (true or false only, never values)
+uv run liquidmexx score     # score trends now from stored history (no network); stores a run
+uv run liquidmexx score --as-of 2026-11-12T12:00:00Z --no-save   # what we knew then
+uv run liquidmexx score --verify 2                               # recompute run 2 exactly
 ```
 
 ## Backups

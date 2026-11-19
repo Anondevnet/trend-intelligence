@@ -130,3 +130,19 @@ def load_models(config_dir: Path | None = None) -> ModelsConfig:
     if missing:
         raise ValueError(f"no daily cap in budgets.yaml for tiers {missing}")
     return models
+
+
+def load_scoring(config_dir: Path | None = None) -> dict[str, Any]:
+    """Load scoring.yaml; weights must cover the four sub-scores and sum to 1."""
+    cfg = _load_yaml("scoring.yaml", config_dir)
+    weights = cfg.get("weights", {})
+    expected = {"acceleration", "volume", "breadth", "novelty"}
+    if set(weights) != expected:
+        raise ValueError(f"scoring weights must be exactly {sorted(expected)}")
+    if abs(sum(float(v) for v in weights.values()) - 1.0) > 1e-9:
+        raise ValueError("scoring weights must sum to 1")
+    return cfg
+
+
+def source_credibility(config_dir: Path | None = None) -> dict[str, float]:
+    return {name: s.credibility for name, s in load_sources(config_dir).items()}
