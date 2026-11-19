@@ -5,7 +5,8 @@ It collects signals from public sources and stores them in a history that is nev
 It then scores which topics are *accelerating* rather than merely popular, and backtests those predictions honestly.
 Later stages draft original, sourced content for review and posting.
 
-> **Status:** Stages 1–5 are done (collection, scoring, backtesting), plus the Stage 10 posting
+> **Status:** Stages 1–5 are done (collection, scoring, backtesting). The Stage 6 detector code is written; its
+> comparison waits for 7+ days of live data. Also done: the Stage 10 posting
 > safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only.
 > There is no live X client in the code. Nothing posts to X. See [`docs/publishing-safety.md`](docs/publishing-safety.md).
 
@@ -41,6 +42,7 @@ uv run liquidmexx collect --source github # run one source now
 uv run liquidmexx link                    # link new items to trends/aliases (also runs after collect)
 uv run liquidmexx score                   # deterministic trend scores from stored history (no network)
 uv run liquidmexx backtest                # point-in-time backtests (1/7/30 days) vs baselines
+uv run liquidmexx compare                 # Stage 6 detector comparison (refuses before 7+ live days)
 uv run liquidmexx backfill github-stars   # honest star-history backfill from starred_at timestamps
 uv run liquidmexx backfill hackernews --days 30
 uv run liquidmexx queue list              # post drafts awaiting review (approval is interactive only)
@@ -62,6 +64,7 @@ Scheduled collection uses launchd. Install it yourself with the commands in [`do
 | `config/models.yaml` | LLM model IDs, task-to-tier routing, escalation, caching/batch settings |
 | `config/scoring.yaml` | Scoring windows, exclusions, clone-farm discount, sub-score weights |
 | `config/backtest.yaml` | Backtest horizons, outcome label, walk-forward settings |
+| `config/detectors.yaml` | Stage 6 detectors (hotlist, signal_sum, ensemble) and comparison rules |
 | `config/publishing.yaml` | Posting mode (off), kill switch, approval TTL, daily cap, quality-gate rules |
 | `config/env.template` | Template for `.env`, with placeholders only |
 

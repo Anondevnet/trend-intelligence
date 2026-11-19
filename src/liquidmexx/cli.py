@@ -15,6 +15,7 @@ from liquidmexx.backtest import Backtester
 from liquidmexx.config import (
     load_backtest,
     load_budgets,
+    load_detectors,
     load_publishing,
     load_scoring,
     load_sources,
@@ -23,6 +24,7 @@ from liquidmexx.config import (
 )
 from liquidmexx.costs.budget import BudgetGuard
 from liquidmexx.db import backup, open_db
+from liquidmexx.detectors import compare, readiness
 from liquidmexx.publishing import (
     DryRunTransport,
     Publisher,
@@ -266,6 +268,40 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Stage 6 detector comparison. Refuses to run until enough live data exists."""
+    conn = open_db()
+    dcfg = load_detectors()
+    ccfg = dcfg["comparison"]
+    ready, days = readiness(conn, ccfg)
+    if not ready:
+        print(f"not running: need {ccfg['min_live_days']}+ live collection days in at least"
+              f" {ccfg['min_ready_sources']} sources. Live days so far:")
+        for src, n in sorted(days.items()):
+            print(f"  {src:<14}{n:>3}")
+        if not days:
+            print("  (none yet)")
+        return 2
+    cfg = load_backtest()
+    bt = Backtester(conn, load_scoring(), source_credibility(), cfg, detectors=dcfg)
+    horizons = args.horizon or [int(h) for h in cfg["horizons_days"]]
+    print(f"compare config {bt.hash}  data watermark {bt.data_watermark()}")
+    for h in horizons:
+        results = bt.run(h)
+        print(f"\n== horizon {h}d")
+        for row in compare(results, ccfg):
+            st = row.stats
+            k = int(ccfg["k"])
+            print(f"  {row.detector:<12} {row.verdict:<26} hits@{k} {st[f'hits_at_{k}']:<8}"
+                  f" recall {st[f'recall_at_{k}']}  FPR {st[f'false_positive_rate_at_{k}']}"
+                  f"  WF F1 {st['walk_forward_f1']}")
+            for reason in row.reasons:
+                print(f"      - {reason}")
+        if not args.no_save:
+            print(f"  saved backtest runs {[bt.save(r) for r in results]}")
+    return 0
+
+
 def cmd_backup(_: argparse.Namespace) -> int:
     conn = open_db()
     path = backup(conn, get_settings().data_dir / "backups", label="manual")
@@ -385,6 +421,10 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--horizon", type=int, action="append", help="days (repeatable)")
     bt.add_argument("--no-save", action="store_true")
     bt.set_defaults(func=cmd_backtest)
+    cp = sub.add_parser("compare", help="Stage 6 detector comparison (needs 7+ live days)")
+    cp.add_argument("--horizon", type=int, action="append")
+    cp.add_argument("--no-save", action="store_true")
+    cp.set_defaults(func=cmd_compare)
     qp = sub.add_parser("queue", help="post drafts: add, list, show, approve, reject, publish")
     qsub = qp.add_subparsers(dest="action", required=True)
     qa = qsub.add_parser("add", help="add a draft (runs the quality gate; never approves)")

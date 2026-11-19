@@ -197,3 +197,29 @@ class PublishingConfig(BaseModel):
 
 def load_publishing(config_dir: Path | None = None) -> PublishingConfig:
     return PublishingConfig.model_validate(_load_yaml("publishing.yaml", config_dir))
+
+
+def load_detectors(config_dir: Path | None = None) -> dict[str, Any]:
+    """Load detectors.yaml (Stage 6) and check the parts the detectors rely on."""
+    cfg = _load_yaml("detectors.yaml", config_dir)
+    for key in ("window_hours", "hotlist", "signal_sum", "ensemble", "comparison"):
+        if key not in cfg:
+            raise ValueError(f"detectors.yaml is missing {key!r}")
+    w = cfg["hotlist"]["weights"]
+    if set(w) != {"prominence", "frequency", "hotness"}:
+        raise ValueError("hotlist weights must be prominence, frequency and hotness")
+    if abs(sum(float(v) for v in w.values()) - 1.0) > 1e-9:
+        raise ValueError("hotlist weights must sum to 1")
+    if "default" not in cfg["signal_sum"]["points"]:
+        raise ValueError("signal_sum.points needs a 'default' rule")
+    for src, rule in cfg["signal_sum"]["points"].items():
+        if ("flat" in rule) == ("tiers" in rule):
+            raise ValueError(f"signal_sum rule {src!r} needs exactly one of flat/tiers")
+        tiers = rule.get("tiers", [])
+        if [float(t[0]) for t in tiers] != sorted((float(t[0]) for t in tiers), reverse=True):
+            raise ValueError(f"signal_sum rule {src!r}: tiers must be in descending order")
+        if tiers and ("metric" not in rule or float(tiers[-1][0]) != 0.0):
+            raise ValueError(f"signal_sum rule {src!r}: tiers need a metric and a 0 floor")
+    if not cfg["ensemble"]["members"]:
+        raise ValueError("ensemble needs at least one member")
+    return cfg

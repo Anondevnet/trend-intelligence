@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
+from liquidmexx.detectors import core as det
 from liquidmexx.scoring.engine import SCORER_VERSION, Mention, Scorer
 from liquidmexx.timeutil import now_iso, parse_iso, to_iso
 
@@ -95,15 +96,25 @@ def spearman(xs: list[float], ys: list[float]) -> float | None:
 class Backtester:
     def __init__(
         self, conn: sqlite3.Connection, scoring: dict[str, Any], credibility: dict[str, float],
-        cfg: dict[str, Any],
+        cfg: dict[str, Any], detectors: dict[str, Any] | None = None,
     ) -> None:
+        """``detectors`` (config/detectors.yaml) adds the Stage 6 detectors and the ensemble;
+        without it only the scorer and the two baselines run."""
         self.conn = conn
         self.cfg = cfg
+        self.det_cfg = detectors
         self.scorer = Scorer(conn, scoring, credibility)
         self._score_cache: dict[str, dict[int, tuple[float, float]]] = {}
         self._mention_cache: dict[str, list[Mention]] = {}
         self._coverage_cache: dict[str, dict[str, list[str]]] = {}
-        snapshot = {"backtest": cfg, "scoring": self.scorer.snapshot}
+        self._engagement_cache: dict[str, dict[str, dict[str, dict[int, float]]]] = {}
+        self._labels_cache: dict[tuple[str, int], DateLabels] = {}
+        self._rank_cache: dict[tuple[str, str], dict[int, float]] = {}
+        self.ensemble_log: dict[int, dict[str, dict[str, Any]]] = {}
+        self._categories: dict[int, str] | None = None
+        snapshot: dict[str, Any] = {"backtest": cfg, "scoring": self.scorer.snapshot}
+        if detectors is not None:
+            snapshot["detectors"] = detectors
         self.snapshot = snapshot
         self.hash = hashlib.sha256(
             json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
@@ -127,6 +138,27 @@ class Backtester:
                 s.trend_id: (s.score, float(s.evidence["window_weighted_mentions"]))
                 for s in results}
         return self._score_cache[as_of]
+
+    def window_mentions(self, as_of: str) -> list[Mention]:
+        assert self.det_cfg is not None
+        start = to_iso(parse_iso(as_of) - timedelta(hours=float(self.det_cfg["window_hours"])))
+        return [m for m in self._mentions(as_of) if m.available_at > start]
+
+    def engagement(self, as_of: str) -> dict[str, dict[str, dict[int, float]]]:
+        """Engagement values the detectors need, as knowable at as_of."""
+        assert self.det_cfg is not None
+        if as_of not in self._engagement_cache:
+            self._engagement_cache[as_of] = {
+                src: {metric: self.scorer._latest_metric(src, metric, as_of)
+                      for metric in sorted(metrics)}
+                for src, metrics in sorted(det.engagement_metrics(self.det_cfg).items())}
+        return self._engagement_cache[as_of]
+
+    def categories(self) -> dict[int, str]:
+        if self._categories is None:
+            self._categories = {int(r["id"]): str(r["category"])
+                                for r in self.conn.execute("SELECT id, category FROM trends")}
+        return self._categories
 
     def data_watermark(self) -> str:
         row = self.conn.execute("SELECT MAX(available_at) AS m FROM raw_items").fetchone()
@@ -163,6 +195,12 @@ class Backtester:
         return n
 
     def labels(self, as_of: str, horizon_days: int) -> DateLabels:
+        key = (as_of, horizon_days)
+        if key not in self._labels_cache:
+            self._labels_cache[key] = self._labels(as_of, horizon_days)
+        return self._labels_cache[key]
+
+    def _labels(self, as_of: str, horizon_days: int) -> DateLabels:
         lab = self.cfg["label"]
         base_days = int(self.scorer.cfg["baseline_days"])
         min_base = int(self.scorer.cfg["acceleration"]["min_baseline_days"])
@@ -215,7 +253,9 @@ class Backtester:
         return DateLabels(as_of, out, share, sources, unseen)
 
     # ---- detectors -------------------------------------------------------------------------
-    def rankers(self) -> dict[str, Ranker]:
+    def rankers(self, horizon_days: int | None = None) -> dict[str, Ranker]:
+        """Detectors by name. The ensemble needs a horizon (its weights come from past
+        outcomes over that horizon), so it is only included when one is given."""
         seed = int(self.cfg["random_seed"])
 
         def scorer(as_of: str) -> dict[int, float]:
@@ -229,12 +269,63 @@ class Backtester:
             return {t: random.Random(f"{seed}:{as_of}:{t}").random()  # noqa: S311 (baseline)
                     for t in sorted(seen)}
 
-        return {f"scorer:{SCORER_VERSION}": scorer, "volume_only": volume_only, "random": rand}
+        out: dict[str, Ranker] = {
+            f"scorer:{SCORER_VERSION}": scorer, "volume_only": volume_only, "random": rand}
+        if self.det_cfg is None:
+            return out
+        dcfg = self.det_cfg
+
+        def hotlist(as_of: str) -> dict[int, float]:
+            return det.hotlist(self.window_mentions(as_of), self.engagement(as_of), dcfg)
+
+        def signal_sum(as_of: str) -> dict[int, float]:
+            return det.signal_sum(self.window_mentions(as_of), self.engagement(as_of),
+                                  self.categories(), dcfg)
+
+        out["hotlist"] = self._cached("hotlist", hotlist)
+        out["signal_sum"] = self._cached("signal_sum", signal_sum)
+        if horizon_days is not None:
+            out["ensemble"] = self._ensemble(horizon_days, out)
+        return out
+
+    def _cached(self, name: str, fn: Ranker) -> Ranker:
+        def wrapped(as_of: str) -> dict[int, float]:
+            key = (name, as_of)
+            if key not in self._rank_cache:
+                self._rank_cache[key] = fn(as_of)
+            return self._rank_cache[key]
+        return wrapped
+
+    def _ensemble(self, horizon_days: int, rankers: dict[str, Ranker]) -> Ranker:
+        assert self.det_cfg is not None
+        ecfg = self.det_cfg["ensemble"]
+        alias = {"scorer": f"scorer:{SCORER_VERSION}"}
+        members = [alias.get(str(m), str(m)) for m in ecfg["members"]]
+        unknown = [m for m in members if m not in rankers]
+        if unknown:
+            raise ValueError(f"ensemble members not available: {unknown}")
+        h = timedelta(days=horizon_days)
+        log = self.ensemble_log.setdefault(horizon_days, {})
+
+        def ensemble(as_of: str) -> dict[int, float]:
+            t = parse_iso(as_of)
+            # Only dates whose outcome window closed by as_of (embargo): no future labels.
+            train = [d for d in self.eval_dates(horizon_days)
+                     if d < as_of and parse_iso(d) + h <= t]
+            history = [({m: rankers[m](d) for m in members},
+                        {tid: v[0] for tid, v in self.labels(d, horizon_days).labels.items()})
+                       for d in train]
+            weights, status = det.member_weights(history, members, int(ecfg["k"]),
+                                                 int(ecfg["min_train_dates"]))
+            log[as_of] = {"weights": weights, "status": status, "train_dates": len(train)}
+            return det.combine({m: rankers[m](as_of) for m in members}, weights)
+
+        return ensemble
 
     # ---- run -------------------------------------------------------------------------------
     def run(self, horizon_days: int, detectors: list[str] | None = None) -> list[BacktestResult]:
         dates = self.eval_dates(horizon_days)
-        all_rankers = self.rankers()
+        all_rankers = self.rankers(horizon_days)
         names = detectors or list(all_rankers)
         labels = {d: self.labels(d, horizon_days) for d in dates}
         results: list[BacktestResult] = []
@@ -249,6 +340,9 @@ class Backtester:
                                         dl.backfill_share.get(tid, 0.0)))
             res = BacktestResult(name, horizon_days, dates, points)
             res.metrics = self.metrics(res, labels)
+            if name == "ensemble" and res.metrics.get("status") == "ok":
+                log = self.ensemble_log.get(horizon_days, {})
+                res.metrics["ensemble_weights"] = {d: log[d] for d in dates if d in log}
             results.append(res)
         return results
 

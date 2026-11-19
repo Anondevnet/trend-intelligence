@@ -101,6 +101,30 @@ The scorer finds trends that are busy *now*, and those spikes usually revert. Pl
 The sample is small (16 positives at 1 day, 28 at 7 days) and relies on the biased backfill, so neither detector's numbers are reliable yet.
 Re-run `liquidmexx backtest` once live collection has 7 or more days of data from every source. Until a detector beats `volume_only` out of sample, scores are descriptive only and must not drive posting.
 
+## Detector comparison (Stage 6)
+
+`config/detectors.yaml` defines two more detectors and an ensemble. Each is a function `T -> {trend: score}` over the same point-in-time inputs as the scorer: eligible mentions in the 24h window ending at T, and engagement values known at T. They are evaluated by the Stage 5 backtester against the same labels.
+
+| Detector | Idea (reimplemented, nothing copied) |
+|---|---|
+| `hotlist` | From TrendRadar (GPL-3.0). Items are ranked by engagement within their source: HN points, GitHub stars, HF likes, Polymarket 24h volume. The score is 0.4 × prominence (how high the trend's items rank, with ranks capped at 10), 0.4 × frequency (weighted mentions, capped at 10) and 0.2 × hotness (share of items in the source's top 3). |
+| `signal_sum` | From solana-narrative-detector (no licence). Each mention adds fixed points: GitHub ≥50★ 2, ≥10★ 1, else 0.5; HN ≥100 points 2, else 1; RSS 1.5; other sources 1. The sum is multiplied by a narrative weight (ai-agents 1.2, depin 1.1). |
+| `ensemble` | Weighted mean of the members' percentile ranks (scorer, volume_only, hotlist, signal_sum). A member's weight at T is its mean top-10 precision above the base rate, computed only on earlier dates whose outcome windows had closed by T (`t + H <= T`). A member with no edge gets weight 0. With fewer than 5 such dates, or if no member has an edge, all members get equal weight, and the run records which case applied. |
+
+The settings were fixed before any comparison was run. They must not be tuned to the backtest.
+
+`liquidmexx compare` runs every detector and gives each one a verdict against `volume_only`:
+
+- **INSUFFICIENT DATA** if there are fewer than 7 evaluation dates, fewer than 20 positive labels, the backfill share is above 0.5, or there is no usable history.
+- **BEATS BASELINE** only if the detector has more top-10 hits than the baseline on more dates than it has fewer (one-sided sign test, p ≤ 0.10) **and** its walk-forward F1 is at least the baseline's.
+- **NOT BETTER THAN BASELINE** otherwise.
+
+The ensemble is never ranked first by default. It must earn that verdict like any other detector.
+
+Each verdict comes with recall@10, false-positive rate@10 and walk-forward F1. Lead time and per-category breakdowns are left for the dashboard stage.
+
+`compare` refuses to run, and saves nothing, until at least 2 sources have 7 or more days of live (non-backfill) collection. Live collection started on 2026-11-19, so the first comparison is due around 2026-11-26. No comparison has been run yet.
+
 ## Planned later stages
 
 | Stage | What it adds |

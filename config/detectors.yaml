@@ -1,0 +1,53 @@
+# Stage 6 detectors. All deterministic, point-in-time (only data with available_at <= T),
+# no network, no LLM. Each is a function T -> {trend_id: score} evaluated by the Stage 5
+# backtester against the same labels as the scorer and the baselines.
+#
+# Ideas only: TrendRadar (GPL-3.0) and solana-narrative-detector (no licence) were read for
+# their approach; nothing is copied. These settings were chosen BEFORE any comparison run and
+# must not be tuned to the backtest (see docs/architecture.md).
+
+window_hours: 24
+
+# "hotlist": TrendRadar-style hot-list weighting. Within each source and window, items are
+# ranked by engagement (known at T). A trend scores for how prominent its items rank
+# (prominence), how often it appears (frequency) and how often it is near the top (hotness).
+hotlist:
+  rank_cap: 10                  # ranks beyond 10 all count as 10 (lowest prominence)
+  top_rank: 3                   # "hot" = in the source's top 3 for the window
+  frequency_cap: 10             # weighted mentions; more than 10 counts as 10
+  weights: {prominence: 0.4, frequency: 0.4, hotness: 0.2}
+  engagement_metrics:           # sources without a metric: every item ranks rank_cap
+    hackernews: points
+    github: stars
+    huggingface: likes
+    polymarket: volume_24h_usd
+
+# "signal_sum": solana-narrative-detector-style additive signals. Each eligible mention in the
+# window adds fixed points by source and engagement tier; the sum is scaled by a per-category
+# narrative weight.
+signal_sum:
+  points:
+    github: {metric: stars, tiers: [[50, 2.0], [10, 1.0], [0, 0.5]]}
+    hackernews: {metric: points, tiers: [[100, 2.0], [0, 1.0]]}
+    rss: {flat: 1.5}
+    default: {flat: 1.0}
+  category_weights: {ai-agents: 1.2, depin: 1.1}   # every other category: 1.0
+
+# "ensemble": rank-averages the members. A member's weight at T is how much its top-k beat
+# the base rate on earlier dates whose outcomes were known by T (t + H <= T). A member with
+# no edge gets weight 0; with no usable history every member gets equal weight (reported).
+ensemble:
+  members: [scorer, volume_only, hotlist, signal_sum]
+  k: 10
+  min_train_dates: 5
+
+# Comparison report (`liquidmexx compare`). Refuses to run before enough live data exists.
+comparison:
+  baseline: volume_only
+  k: 10
+  min_eval_dates: 7             # fewer evaluation dates -> INSUFFICIENT DATA
+  min_positives: 20             # fewer positive labels -> INSUFFICIENT DATA
+  max_backfill_share: 0.5       # mostly-backfilled evidence (hindsight-biased) -> INSUFFICIENT DATA
+  sign_test_alpha: 0.10         # one-sided paired sign test on per-date top-k hits vs baseline
+  min_live_days: 7              # live (non-backfill) collection days required per source ...
+  min_ready_sources: 2          # ... in at least this many sources before `compare` will run
