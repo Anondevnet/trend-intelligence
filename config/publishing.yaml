@@ -1,0 +1,50 @@
+# Stage 10 groundwork: X posting safeguards. Deterministic, no LLM, no network.
+#
+# Posting is OFF and draft-only by default. Nothing can reach X unless ALL of these hold:
+#   1. mode: "live" below                  (default "off")
+#   2. LIQUIDMEXX_LIVE_POSTING=enabled in .env      (default unset)
+#   3. a live X transport is installed     (none exists yet; Stage 10 proper, needs approval)
+#   4. the kill switch is not engaged      (file data/POSTING_KILL_SWITCH, or kill_switch below)
+#   5. the draft has a human approval for its exact content, newer than approval_ttl_hours,
+#      with no later rejection, and still passes the quality gate at publish time
+#   6. today's post cap and the X spending cap (budgets.yaml) have room
+# Every decision, block, attempt and result is written to the append-only post_events log.
+
+mode: "off"                    # "off" | "dry_run" | "live"   (keep the quotes: bare off = false)
+kill_switch: false             # true blocks every publish, like the kill-switch file
+require_human_approval: true   # cannot be turned off (the loader refuses false)
+approval_ttl_hours: 24         # an approval older than this must be renewed
+max_posts_per_day: 3           # per UTC day, counts every publish attempt in the current mode
+
+# Quality gate
+max_chars: 280
+min_sources: 1                 # each draft must cite at least this many distinct sources
+allow_urls: false              # links in the post text (X charges $0.20 for a URL post)
+allow_mentions: false          # @handles in the text (no automated tagging of people)
+allow_cashtags: false          # $TICKER in the text (no token promotion)
+duplicate_window_days: 30
+near_duplicate_jaccard: 0.8    # word-set similarity at or above this vs a published post = duplicate
+
+x_cost_usd:                    # charged through BudgetGuard in live mode only
+  post: 0.015
+  post_with_url: 0.20
+
+# Sponsored drafts must carry one of these (case-insensitive).
+sponsored_disclosures: ["#ad", "#sponsored", "sponsored:", "paid partnership"]
+
+# Speculative or rumor drafts must say so in the text with one of these words.
+uncertainty_labels: ["unconfirmed", "unverified", "rumor", "rumour", "speculative", "speculation"]
+
+# Case-insensitive regexes. A match blocks the draft.
+financial_advice_patterns:
+  - '\b(buy|sell|short|long|ape|aping|load|loading)\s+(it|now|this|that|the\s+dip|more|in|up)\b'
+  - '\b(not\s+financial\s+advice|nfa|dyor|financial\s+advice|investment\s+advice)\b'
+  - '\b(to\s+the\s+moon|mooning|moonshot|guaranteed|can''t\s+lose|risk[-\s]?free|easy\s+money)\b'
+  - '\b(\d+\s?x|hundred\s?x|thousand\s?x)\s+(gains?|returns?|potential|play|from\s+here)\b'
+  - '\b(entry\s+(point|zone)|take\s+profits?|stop[-\s]?loss|all[-\s]in|bags?\s+(are|is)\s+packed|send\s+it)\b'
+  - '\b(undervalued|overvalued|gem|alpha\s+call|next\s+(big|100x)|bullish\s+on|bearish\s+on)\b'
+price_prediction_patterns:
+  - '\b(will|gonna|going\s+to|set\s+to|about\s+to|could|should|expected\s+to|poised\s+to|likely\s+to)\s+(hit|reach|touch|break|flip|test|retest|rally|surge|soar|pump|dump|crash|moon|double|triple|10x)\b'
+  - '\bprice\s+(target|prediction|forecast)\b'
+  - '\$\s?\d[\d,.]*\s?[kmb]?\s+(by|before|in|this|next|eoy|end\s+of)\b'
+  - '\b(eoy|eow|eom|by\s+end\s+of\s+(the\s+)?(year|month|week))\b'

@@ -27,6 +27,8 @@ uv run liquidmexx score     # score trends now from stored history (no network);
 uv run liquidmexx score --as-of 2026-11-12T12:00:00Z --no-save   # what we knew then
 uv run liquidmexx score --verify 2                               # recompute run 2 exactly
 uv run liquidmexx backtest                                       # 1/7/30-day backtests, all detectors
+uv run liquidmexx posting status                                 # posting mode, kill switch
+uv run liquidmexx posting kill --reason "..."                    # emergency stop for all publishing
 ```
 
 ## Backups

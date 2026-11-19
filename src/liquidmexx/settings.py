@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     x_access_token_secret: SecretStr | None = None
     x_bearer_token: SecretStr | None = None
 
+    # Second, independent switch for live X posting (Stage 10). Only the exact value
+    # "enabled" counts; config/publishing.yaml must also say mode: "live".
+    liquidmexx_live_posting: str | None = None
+
     liquidmexx_data_dir: str | None = Field(default=None)
     liquidmexx_config_dir: str | None = Field(default=None)
 
@@ -64,6 +68,10 @@ class Settings(BaseSettings):
     @property
     def db_path(self) -> Path:
         return self.data_dir / "liquidmexx.db"
+
+    @property
+    def live_posting_opt_in(self) -> bool:
+        return (self.liquidmexx_live_posting or "").strip() == "enabled"
 
     def secret_values(self) -> list[str]:
         """All configured secret values (for log redaction). Never print this."""

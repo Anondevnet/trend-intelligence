@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -157,3 +158,42 @@ def load_backtest(config_dir: Path | None = None) -> dict[str, Any]:
     if not 0 <= int(cfg["eval_hour_utc"]) <= 23:
         raise ValueError("eval_hour_utc must be 0-23")
     return cfg
+
+
+class PublishingConfig(BaseModel):
+    """Stage 10 posting safeguards (config/publishing.yaml). Defaults are the safe ones."""
+
+    mode: Literal["off", "dry_run", "live"] = "off"
+    kill_switch: bool = False
+    require_human_approval: bool = True
+    approval_ttl_hours: float = Field(default=24, gt=0, le=168)
+    max_posts_per_day: int = Field(default=3, ge=0, le=20)
+    max_chars: int = Field(default=280, ge=1, le=280)
+    min_sources: int = Field(default=1, ge=1)
+    allow_urls: bool = False
+    allow_mentions: bool = False
+    allow_cashtags: bool = False
+    duplicate_window_days: int = Field(default=30, ge=0)
+    near_duplicate_jaccard: float = Field(default=0.8, gt=0, le=1)
+    x_cost_usd: dict[str, float] = Field(
+        default_factory=lambda: {"post": 0.015, "post_with_url": 0.20})
+    sponsored_disclosures: list[str] = Field(min_length=1)
+    uncertainty_labels: list[str] = Field(min_length=1)
+    financial_advice_patterns: list[str] = Field(min_length=1)
+    price_prediction_patterns: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _safe(self) -> PublishingConfig:
+        if not self.require_human_approval:
+            raise ValueError("require_human_approval must stay true")
+        if set(self.x_cost_usd) != {"post", "post_with_url"}:
+            raise ValueError("x_cost_usd needs exactly 'post' and 'post_with_url'")
+        if any(v <= 0 for v in self.x_cost_usd.values()):
+            raise ValueError("x_cost_usd values must be > 0")
+        for pattern in self.financial_advice_patterns + self.price_prediction_patterns:
+            re.compile(pattern, re.IGNORECASE)
+        return self
+
+
+def load_publishing(config_dir: Path | None = None) -> PublishingConfig:
+    return PublishingConfig.model_validate(_load_yaml("publishing.yaml", config_dir))

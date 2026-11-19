@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import getpass
 import logging
 import sys
 from collections.abc import Iterator
@@ -14,6 +15,7 @@ from liquidmexx.backtest import Backtester
 from liquidmexx.config import (
     load_backtest,
     load_budgets,
+    load_publishing,
     load_scoring,
     load_sources,
     load_taxonomy,
@@ -21,6 +23,21 @@ from liquidmexx.config import (
 )
 from liquidmexx.costs.budget import BudgetGuard
 from liquidmexx.db import backup, open_db
+from liquidmexx.publishing import (
+    DryRunTransport,
+    Publisher,
+    QueueError,
+    approve,
+    create_draft,
+    engage_kill_switch,
+    get_draft,
+    kill_switch_engaged,
+    list_drafts,
+    reject,
+    release_kill_switch,
+    status_of,
+)
+from liquidmexx.publishing.queue import events as draft_events
 from liquidmexx.redaction import setup_logging
 from liquidmexx.scoring import SCORER_VERSION, Scorer, verify_run
 from liquidmexx.settings import get_settings
@@ -144,7 +161,19 @@ def cmd_status(_: argparse.Namespace) -> int:
               f"  lifetime ${s.lifetime_spent_usd:.4f}"
               + (f"  credit left ${s.credit_remaining_usd:.2f}"
                  if s.credit_remaining_usd is not None else ""))
-    run = q("SELECT id, as_of, config_hash FROM scoring_runs ORDER BY id DESC LIMIT 1").fetchone()
+    print("\n== collected history (live, non-baseline items; Stage 6 needs 7+ days everywhere)")
+    history = list(q("SELECT source_id, COUNT(DISTINCT substr(available_at,1,10)) days,"
+               " MIN(substr(available_at,1,10)) first_day, MAX(available_at) last_item"
+               " FROM v_raw_items WHERE is_backfill=0 AND is_initial_snapshot=0"
+               " GROUP BY source_id ORDER BY source_id"))
+    if not history:
+        print("  none yet: only first (baseline) runs so far -- is the launchd job installed?")
+    for r in history:
+        mark = "ready" if r["days"] >= 7 else f"{7 - r['days']} more day(s) needed"
+        print(f"  {r['source_id']:<14}{r['days']:>3} day(s) since {r['first_day']}"
+              f"  last {r['last_item']}  {mark}")
+    run = q("SELECT id, as_of, config_hash FROM scoring_runs"
+            " ORDER BY as_of DESC, id DESC LIMIT 1").fetchone()
     if run:
         print(f"\n== top scored trends (scoring run {run['id']}, as_of {run['as_of']})")
         for r in q("SELECT t.slug, s.score, s.confidence FROM trend_scores s JOIN trends t"
@@ -158,6 +187,14 @@ def cmd_status(_: argparse.Namespace) -> int:
                "'%Y-%m-%dT%H:%M:%S.000000Z','now','-1 day') GROUP BY t.id ORDER BY n DESC"
                " LIMIT 15"):
         print(f"  {r['n']:>4} mentions  {r['src']} sources  {r['slug']}")
+    pcfg = load_publishing()
+    print(f"\n== posting: mode={pcfg.mode}  kill_switch="
+          f"{'ENGAGED' if kill_switch_engaged(pcfg, get_settings().data_dir) else 'off'}"
+          "  live X transport: none installed")
+    counts: dict[str, int] = {}
+    for _draft, st in list_drafts(conn, include_closed=True):
+        counts[st] = counts.get(st, 0) + 1
+    print("  queue: " + (", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "empty"))
     print("\n(mention counts are raw evidence; scores come from `liquidmexx score`)")
     return 0
 
@@ -236,6 +273,89 @@ def cmd_backup(_: argparse.Namespace) -> int:
     return 0
 
 
+def _human() -> str:
+    return f"human:{getpass.getuser()}"
+
+
+def _parse_source(value: str) -> dict[str, object]:
+    if value.startswith("raw:") and value[4:].isdigit():
+        return {"raw_item_id": int(value[4:])}
+    return {"url": value}
+
+
+def cmd_queue(args: argparse.Namespace) -> int:
+    conn = open_db()
+    cfg = load_publishing()
+    if args.action == "add":
+        draft_id, gate = create_draft(
+            conn, cfg, text=args.text, sources=[_parse_source(v) for v in args.source or []],
+            claim_status=args.claim, sponsored=args.sponsored, actor=_human())
+        verdict = "passed the gate, pending review" if gate.passed else "BLOCKED"
+        print(f"draft {draft_id}: {verdict}")
+        for reason in gate.reasons:
+            print(f"  - {reason}")
+        return 0 if gate.passed else 1
+    if args.action == "list":
+        for row, status in list_drafts(conn, include_closed=args.all):
+            print(f"{row.id:>5}  {status:<18}{row.claim_status:<12}{row.text[:70]!r}")
+        return 0
+    draft = get_draft(conn, args.id)
+    if draft is None:
+        print(f"draft {args.id} does not exist")
+        return 1
+    if args.action == "show":
+        print(f"draft {draft.id}  status={status_of(conn, draft.id)}  claim={draft.claim_status}"
+              f"  sponsored={draft.sponsored}\n  hash {draft.content_hash}\n  sources"
+              f" {draft.sources}\n---\n{draft.text}\n---")
+        for e in draft_events(conn, draft.id):
+            print(f"  {e['at']}  {e['event']:<18}{e['actor']:<20}{e['detail_json']}")
+        return 0
+    try:
+        if args.action == "approve":
+            if not sys.stdin.isatty():
+                print("approval needs an interactive terminal; refusing")
+                return 1
+            print(f"---\n{draft.text}\n---\nsources: {draft.sources}  claim: {draft.claim_status}")
+            typed = input(f"Type the draft id ({draft.id}) to approve this exact text: ")
+            if typed.strip() != str(draft.id):
+                print("not approved")
+                return 1
+            approve(conn, cfg, draft.id, _human(), note=args.note or "")
+            print(f"draft {draft.id} approved (valid {cfg.approval_ttl_hours:g}h)")
+        elif args.action == "reject":
+            reject(conn, draft.id, _human(), args.reason)
+            print(f"draft {draft.id} rejected")
+        elif args.action == "publish":
+            # Only the dry-run transport exists. In mode "off" or "live" this is blocked.
+            pub = Publisher(conn, cfg, DryRunTransport(), data_dir=get_settings().data_dir,
+                            live_opt_in=get_settings().live_posting_opt_in,
+                            guard=BudgetGuard(conn, load_budgets()))
+            out = pub.publish(draft.id, _human())
+            print(f"draft {draft.id}: {'OK ' + out.reason if out.ok else 'BLOCKED: ' + out.reason}")
+            return 0 if out.ok else 1
+    except QueueError as exc:
+        print(f"refused: {exc}")
+        return 1
+    return 0
+
+
+def cmd_posting(args: argparse.Namespace) -> int:
+    conn = open_db()
+    cfg = load_publishing()
+    data_dir = get_settings().data_dir
+    if args.action == "kill":
+        engage_kill_switch(conn, data_dir, _human(), args.reason or "")
+        print("kill switch ENGAGED: every publish is blocked")
+    elif args.action == "unkill":
+        released = release_kill_switch(conn, data_dir, _human())
+        print("kill-switch file removed" if released else "kill-switch file was not present")
+    killed = "ENGAGED" if kill_switch_engaged(cfg, data_dir) else "off"
+    print(f"mode={cfg.mode}  kill_switch={killed}"
+          f"  live_opt_in={get_settings().live_posting_opt_in}  live_transport=none installed"
+          f"  max_posts_per_day={cfg.max_posts_per_day}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="liquidmexx", description=__doc__)
     p.add_argument("-v", "--verbose", action="store_true")
@@ -265,6 +385,30 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--horizon", type=int, action="append", help="days (repeatable)")
     bt.add_argument("--no-save", action="store_true")
     bt.set_defaults(func=cmd_backtest)
+    qp = sub.add_parser("queue", help="post drafts: add, list, show, approve, reject, publish")
+    qsub = qp.add_subparsers(dest="action", required=True)
+    qa = qsub.add_parser("add", help="add a draft (runs the quality gate; never approves)")
+    qa.add_argument("--text", required=True)
+    qa.add_argument("--source", action="append", help="raw:<raw_item_id> or an https URL")
+    qa.add_argument("--claim", choices=["verified", "speculative", "rumor"], required=True)
+    qa.add_argument("--sponsored", action="store_true")
+    ql = qsub.add_parser("list", help="open drafts (--all for closed ones too)")
+    ql.add_argument("--all", action="store_true")
+    for name, helptext in (("show", "draft text and its audit log"),
+                           ("approve", "approve a draft (interactive only)"),
+                           ("reject", "reject a draft or withdraw its approval"),
+                           ("publish", "publish an approved draft (dry-run transport only)")):
+        a = qsub.add_parser(name, help=helptext)
+        a.add_argument("id", type=int)
+        if name == "approve":
+            a.add_argument("--note")
+        if name == "reject":
+            a.add_argument("--reason", required=True)
+    qp.set_defaults(func=cmd_queue)
+    pp = sub.add_parser("posting", help="posting switches: status, kill, unkill")
+    pp.add_argument("action", choices=["status", "kill", "unkill"])
+    pp.add_argument("--reason")
+    pp.set_defaults(func=cmd_posting)
     sub.add_parser("status", help="counts, last runs, spend").set_defaults(func=cmd_status)
     sub.add_parser("backup", help="snapshot the database").set_defaults(func=cmd_backup)
     return p
