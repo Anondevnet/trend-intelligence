@@ -6,7 +6,7 @@ It then scores which topics are *accelerating* rather than merely popular, and b
 Later stages draft original, sourced content for review and posting.
 
 > **Status:** Stages 1–5 are done (collection, scoring, backtesting). The Stage 6 detector code is written; its
-> comparison waits for 7+ days of live data. Also done: the Stage 10 posting
+> comparison waits for 7+ days of live data (earliest 2026-11-26; settings locked in `config/detectors.lock`). Also done: the Stage 10 posting
 > safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only,
 > and the Stage 8 Claude client (routing, caps, validation with one Sonnet retry, caching, batches),
 > with real API calls off.
@@ -63,10 +63,10 @@ Scheduled collection uses launchd. Install it yourself with the commands in [`do
 | `config/taxonomy.yaml` | Trend categories, narratives and aliases used for linking |
 | `config/budgets.yaml` | Daily USD caps per provider (X $0.15, Anthropic $2.00) |
 | `config/pricing.yaml` | Unit prices, with source URL and retrieval date |
-| `config/models.yaml` | LLM model IDs, task-to-tier routing, escalation, caching/batch settings |
+| `config/models.yaml` | LLM model IDs, task-to-tier routing, escalation, caching/batch settings, `live_calls: false` |
 | `config/scoring.yaml` | Scoring windows, exclusions, clone-farm discount, sub-score weights |
 | `config/backtest.yaml` | Backtest horizons, outcome label, walk-forward settings |
-| `config/detectors.yaml` | Stage 6 detectors (hotlist, signal_sum, ensemble) and comparison rules |
+| `config/detectors.yaml` | Stage 6 detectors (hotlist, signal_sum, ensemble) and comparison rules. **Locked**: `config/detectors.lock` |
 | `config/publishing.yaml` | Posting mode (off), kill switch, approval TTL, daily cap, quality-gate rules |
 | `config/env.template` | Template for `.env`, with placeholders only |
 
@@ -77,7 +77,7 @@ uv run ruff check . && uv run mypy && uv run pytest
 uv run python scripts/secret_scan.py      # run before every commit
 ```
 
-Tests use mocked HTTP (`respx`), never touch real credentials, and never post.
+Tests use mocked HTTP (`respx`) and a mock Claude transport, never touch real credentials, never call Anthropic or X, and never post.
 
 ## Documentation
 
@@ -85,6 +85,8 @@ Tests use mocked HTTP (`respx`), never touch real credentials, and never post.
 - [`docs/data-sources.md`](docs/data-sources.md): every source, its terms, limits and what we store
 - [`docs/operations.md`](docs/operations.md): launchd install, backups, recovery
 - [`docs/costs-and-pricing.md`](docs/costs-and-pricing.md): pricing assumptions and caps
+- [`docs/publishing-safety.md`](docs/publishing-safety.md): posting safeguards (off, draft-only, approval-gated)
+- [`docs/comparison-checklist.md`](docs/comparison-checklist.md): the 2026-11-26 Stage 6 comparison run and what each outcome means
 
 ## License
 

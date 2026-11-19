@@ -21,6 +21,10 @@ launchd (every 15 min) → liquidmexx collect --due
 | `api_usage` | **append-only** (trigger) | Every request and its cost, by UTC day; LLM calls also record tier, model, tokens and batch flag (0004) |
 | `trends`, `trend_aliases` | additive | Narratives from `config/taxonomy.yaml`, plus entity trends |
 | `trend_mentions` | **append-only** (trigger) | item → trend links, versioned by `linker_version` |
+| `scoring_runs`, `trend_scores` | **append-only** (trigger) | Stage 4 score runs with config snapshot and hash (0005) |
+| `backtest_runs`, `backtest_points` | **append-only** (trigger) | Stage 5/6 backtest and comparison runs (0006) |
+| `post_drafts`, `post_events` | **append-only** (trigger) | Stage 10 immutable drafts and their audit log; approval and publish rules are enforced by triggers (0007) |
+| `llm_batches`, `llm_batch_results` | **append-only** (trigger) | Stage 8 Batch API submissions and results, each result collected once (0008) |
 | `schema_migrations` | additive | Applied migrations with checksums |
 
 Views (derived, never destructive):
@@ -131,15 +135,18 @@ Each verdict comes with recall@10, false-positive rate@10 and walk-forward F1. L
 
 `compare` refuses to run, and saves nothing, until at least 2 sources have 7 or more days of live (non-backfill) collection. Live collection started on 2026-11-19, so the first comparison is due around 2026-11-26. No comparison has been run yet.
 
-## Planned later stages
+## Stage status
 
-| Stage | What it adds |
-|---|---|
-| 6 | Detector comparison |
-| 7 | Narrative engines |
-| 8 | Claude research and content |
-| 9 | Dashboard |
-| 10 | X publishing (dry-run first) |
-| 11 | Engagement analytics |
-| 12 | Learning engine |
-| 13 | Security and operations hardening |
+| Stage | What it adds | Status |
+|---|---|---|
+| 1–3 | Collection, append-only storage, trend linking | Done |
+| 4 | Deterministic scorer | Done |
+| 5 | Point-in-time backtester | Done (scorer loses to `volume_only` so far) |
+| 6 | Detector comparison | Code done and settings locked; first run due 2026-11-26, see [`comparison-checklist.md`](comparison-checklist.md) |
+| 7 | Narrative engines | Planned |
+| 8 | Claude research and content | Offline client done (routing, caps, validation, caching, batches); real calls off, see [`costs-and-pricing.md`](costs-and-pricing.md) |
+| 9 | Dashboard | Planned |
+| 10 | X publishing | Safeguards done (off, draft-only, approval-gated); no live X transport exists, see [`publishing-safety.md`](publishing-safety.md) |
+| 11 | Engagement analytics | Planned |
+| 12 | Learning engine | Planned |
+| 13 | Security and operations hardening | Planned |
