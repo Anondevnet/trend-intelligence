@@ -7,7 +7,9 @@ Later stages draft original, sourced content for review and posting.
 
 > **Status:** Stages 1–5 are done (collection, scoring, backtesting). The Stage 6 detector code is written; its
 > comparison waits for 7+ days of live data. Also done: the Stage 10 posting
-> safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only.
+> safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only,
+> and the Stage 8 Claude client (routing, caps, validation with one Sonnet retry, caching, batches),
+> with real API calls off.
 > There is no live X client in the code. Nothing posts to X. See [`docs/publishing-safety.md`](docs/publishing-safety.md).
 
 ## Principles

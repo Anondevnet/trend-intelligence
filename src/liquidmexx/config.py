@@ -88,6 +88,8 @@ class Escalation(BaseModel):
 
 class ModelsConfig(BaseModel):
     provider: str
+    live_calls: bool = False
+    max_tokens: dict[str, int] = Field(default_factory=dict)
     tiers: dict[str, str]
     no_llm: list[str] = Field(default_factory=list)
     tasks: dict[str, TaskRoute]
@@ -103,6 +105,11 @@ class ModelsConfig(BaseModel):
         overlap = set(self.no_llm) & set(self.tasks)
         if overlap:
             raise ValueError(f"tasks marked no_llm cannot be routed to a model: {sorted(overlap)}")
+        missing = sorted(set(self.tiers) - set(self.max_tokens))
+        if self.max_tokens and missing:
+            raise ValueError(f"max_tokens missing for tiers {missing}")
+        if any(v < 1 for v in self.max_tokens.values()):
+            raise ValueError("max_tokens must be >= 1")
         for src, dst in self.escalation.on_schema_failure.items():
             if src not in self.tiers or dst not in self.tiers:
                 raise ValueError(f"escalation {src}->{dst} names an unknown tier")

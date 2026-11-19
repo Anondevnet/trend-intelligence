@@ -5,6 +5,16 @@
 
 provider: anthropic
 
+# Real API calls are OFF. They need live_calls: true here AND LIQUIDMEXX_LIVE_LLM=enabled
+# in .env AND an ANTHROPIC_API_KEY. Until then every call is refused before any network use.
+live_calls: false
+
+# Output token ceiling per request, by tier (also used for the pre-call cost estimate).
+max_tokens:
+  haiku: 2048
+  sonnet: 4096
+  opus: 8192
+
 # Tier -> model ID. Swap a model by editing one line here.
 tiers:
   haiku: claude-haiku-5-5

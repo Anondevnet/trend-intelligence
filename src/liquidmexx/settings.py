@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # Second, independent switch for live X posting (Stage 10). Only the exact value
     # "enabled" counts; config/publishing.yaml must also say mode: "live".
     liquidmexx_live_posting: str | None = None
+    # Same pattern for real Anthropic API calls (Stage 8): only "enabled" counts, and
+    # config/models.yaml must also say live_calls: true.
+    liquidmexx_live_llm: str | None = None
 
     liquidmexx_data_dir: str | None = Field(default=None)
     liquidmexx_config_dir: str | None = Field(default=None)
@@ -72,6 +75,10 @@ class Settings(BaseSettings):
     @property
     def live_posting_opt_in(self) -> bool:
         return (self.liquidmexx_live_posting or "").strip() == "enabled"
+
+    @property
+    def live_llm_opt_in(self) -> bool:
+        return (self.liquidmexx_live_llm or "").strip() == "enabled"
 
     def secret_values(self) -> list[str]:
         """All configured secret values (for log redaction). Never print this."""

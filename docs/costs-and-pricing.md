@@ -55,6 +55,40 @@ A paid Anthropic call must name a tier. `BudgetGuard.charge()` checks the tier c
 If a Haiku output fails schema validation, it is retried once on Sonnet and then flagged for review. Anything that failed a check is never auto-posted; the loader refuses a config that turns this off.
 Non-urgent work (deep research, the digest, engagement summaries, the strategy review) goes through the Batch API, and stable system prompts are cached.
 
-## Stages 1–3 spend
+## Claude client (Stage 8, `liquidmexx.llm`)
 
-$0. No paid API is called yet.
+`ClaudeClient` is the only path to the Anthropic API. It uses the official `anthropic` SDK.
+
+**Real calls are off.** They need all three of:
+- `live_calls: true` in `models.yaml`;
+- `LIQUIDMEXX_LIVE_LLM=enabled` in `.env`;
+- an `ANTHROPIC_API_KEY`.
+
+Otherwise the transport is `OfflineTransport`, which refuses every call before any network use. All tests use a scripted mock transport.
+
+**What every request goes through:**
+- **Routing.** The model comes from task → tier → model in `models.yaml`. Tasks listed under `no_llm` raise an error.
+- **Caps before the call.** A worst-case cost is checked against the provider and tier caps (`budgets.yaml`) before anything is sent. The estimate assumes about 3 characters per token, bills the whole prompt at the dearer of the input and cache-write rates, and assumes all of `max_tokens` is used. If it doesn't fit, nothing is sent or recorded.
+- **Cost after the call.** The actual cost comes from the response's token usage and `pricing.yaml`. That covers cache writes (5m or 1h), cache reads, Haiku's rate above 100k tokens, and the 50% batch discount. Each call is one `api_usage` row with tier, model, tokens and `{"attempt": n, "ok": ...}`.
+- **Validation.**
+  - Structured tasks send `output_config.format` (`json_schema` built from pydantic models, with every object closed) and validate the reply against the same model.
+  - A refusal or `max_tokens` stop also counts as a failure.
+  - A Haiku failure is retried once on Sonnet. A second failure, or a retry the budget won't allow, is flagged `flag_for_review`.
+  - `autopost_allowed` is true only for a valid first-try result. Publishing still needs human approval in every case.
+- **Caching.** Tasks with `cache_system_prompt` send the system prompt as a block with `cache_control: {type: ephemeral}`, using the TTL from `caching.ttl`.
+- **Batch API.**
+  - Tasks with `batch: true` must use `submit_batch`. `run(..., urgent=True)` is the only way to call one synchronously.
+  - Submitting checks the discounted worst case against the caps and records the batch in `llm_batches`.
+  - `collect_batch` returns nothing while the batch is processing. When it has ended, it validates each result, records its discounted cost, and writes each outcome exactly once to `llm_batch_results`: ok, invalid, errored, canceled or expired, with failures flagged for review. Both tables are append-only.
+  - Cost is checked when a batch is submitted but recorded when it is collected, so a collection can push that day's recorded spend past the estimate.
+- **Daily task limits.** `max_per_day` (for example, deep research at 3) counts first attempts plus requests in batches not yet collected.
+
+**Not yet verified against the live API:**
+- whether the API accepts the JSON schemas exactly as pydantic generates them (`title` and `description` keys included);
+- whether the SDK wrapper behaves as expected end to end.
+
+The first real call, made only with your approval, should be a single Haiku request to check both.
+
+## Spend so far
+
+$0. No paid API has been called.
