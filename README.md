@@ -55,6 +55,7 @@ Scheduled collection uses launchd. Install it yourself with the commands in [`do
 | `config/taxonomy.yaml` | Trend categories, narratives and aliases used for linking |
 | `config/budgets.yaml` | Daily USD caps per provider (X $0.15, Anthropic $2.00) |
 | `config/pricing.yaml` | Unit prices, with source URL and retrieval date |
+| `config/models.yaml` | LLM model IDs, task-to-tier routing, escalation, caching/batch settings |
 | `config/env.template` | Template for `.env`, with placeholders only |
 
 ## Development

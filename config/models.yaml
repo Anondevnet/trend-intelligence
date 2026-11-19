@@ -1,0 +1,57 @@
+# LLM model routing. Model IDs and task routing live here, prices live in pricing.yaml,
+# and daily caps live in budgets.yaml (anthropic.tiers). Nothing in code hard-codes a model ID.
+# Validated at load time by liquidmexx.config.load_models(): every routed tier must exist,
+# every tier's model must have a price, and every tier must have a daily cap.
+
+provider: anthropic
+
+# Tier -> model ID. Swap a model by editing one line here.
+tiers:
+  haiku: claude-haiku-5-5
+  sonnet: claude-sonnet-5-5
+  opus: claude-opus-5-5
+
+# Work that never calls an LLM (deterministic code only). Listed so a misrouted task fails loudly.
+no_llm:
+  - scoring
+  - z_scores
+  - backtesting
+  - alias_dedup
+
+# Task -> tier. batch: true means non-urgent work that goes through the Batch API (50% off,
+# results can take up to 24h). cache_system_prompt: reuse a cached system prompt/rubric.
+tasks:
+  # Haiku: cheap structured extraction and checks
+  entity_extraction:        {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  topic_tagging:            {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  clustering_check:         {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  sentiment_tagging:        {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  schema_validation:        {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  near_duplicate_check:     {tier: haiku, schema: true, batch: false, cache_system_prompt: true}
+  # Sonnet: writing
+  post_draft:               {tier: sonnet, schema: true, batch: false, cache_system_prompt: true}
+  thread_draft:             {tier: sonnet, schema: true, batch: false, cache_system_prompt: true}
+  weekly_digest:            {tier: sonnet, schema: true, batch: true,  cache_system_prompt: true}
+  reply_draft:              {tier: sonnet, schema: true, batch: false, cache_system_prompt: true}
+  engagement_summary:       {tier: sonnet, schema: true, batch: true,  cache_system_prompt: true}
+  # Opus: research, verification and the final gate
+  deep_research:            {tier: opus, schema: true, batch: true,  cache_system_prompt: true, max_per_day: 3}
+  claim_verification:       {tier: opus, schema: true, batch: false, cache_system_prompt: true}
+  claim_classification:     {tier: opus, schema: true, batch: false, cache_system_prompt: true}  # verified / speculative / rumor
+  safety_gate:              {tier: opus, schema: true, batch: false, cache_system_prompt: true}  # final check before any auto-post
+  weekly_strategy_review:   {tier: opus, schema: true, batch: true,  cache_system_prompt: true}
+
+# If a structured (schema: true) output fails validation: retry once on the next tier, then
+# flag for human review. Anything that failed a check is never auto-posted.
+escalation:
+  on_schema_failure:
+    haiku: sonnet
+  max_retries: 1
+  after_retries: flag_for_review
+  never_autopost_after_failure: true
+
+# Prompt caching / batch defaults.
+caching:
+  ttl: 5m            # 5-minute cache writes cost 1.25x input; 1h costs 2x (see pricing.yaml)
+batch:
+  submit_window_utc: "06:00"   # nightly research/analytics batches (01:00/02:00 America/Detroit)

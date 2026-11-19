@@ -18,7 +18,7 @@ launchd (every 15 min) → liquidmexx collect --due
 | `raw_items` | **append-only** (trigger) | First-seen record of each external item |
 | `raw_payloads` | can be pruned | Gzipped source JSON, kept separate so it can be dropped to save disk |
 | `observations` | **append-only** (trigger) | Time series: `(subject, metric, value, observed_at, available_at, is_backfill)` |
-| `api_usage` | **append-only** (trigger) | Every request and its cost, by UTC day |
+| `api_usage` | **append-only** (trigger) | Every request and its cost, by UTC day; LLM calls also record tier, model, tokens and batch flag (0004) |
 | `trends`, `trend_aliases` | additive | Narratives from `config/taxonomy.yaml`, plus entity trends |
 | `trend_mentions` | **append-only** (trigger) | item → trend links, versioned by `linker_version` |
 | `schema_migrations` | additive | Applied migrations with checksums |

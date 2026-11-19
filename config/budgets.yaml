@@ -12,6 +12,11 @@ providers:
   anthropic:
     daily_cap_usd: 2.00
     warn_fraction: 0.8
+    # Per-model-tier daily caps (tiers defined in models.yaml). Must sum to <= daily_cap_usd.
+    tiers:
+      opus: 1.30     # top-3 deep research, claim verification, safety gate, weekly review
+      sonnet: 0.50   # drafts, threads, digest, reply drafts, engagement summaries
+      haiku: 0.20    # extraction, tagging, clustering/dup checks
   github:
     daily_cap_usd: 0.0         # free API; requests are still counted
   hackernews:
