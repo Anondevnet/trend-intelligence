@@ -247,7 +247,7 @@ def test_command_center_tiles_are_honest(db: Path) -> None:
                   "Anomaly alerts", "Narrative shifts"):
         assert label in body
     # metrics that need X data are shown as not collected, never as made-up numbers
-    assert body.count("kpi na") == 4
+    assert body.count("kpi na") == 3
     assert "not collected" in body and "no validated predictor" in body
     assert "http-equiv=refresh" in body
     assert "<script" not in body.lower().replace("&lt;script", "")
@@ -259,3 +259,46 @@ def test_lifecycle_rules_are_descriptive() -> None:
     assert lifecycle(10, 0, 8, 0) == "Accelerating"
     assert lifecycle(10, 8, 3, 2) == "Emerging"
     assert lifecycle(10, 8, 1, 5) == "Cooling"
+
+
+def _mastodon_world(path: Path, posts: int) -> sqlite3.Connection:
+    from liquidmexx.store import Observation, RawItem, Store
+    conn = connect(path)
+    migrate(conn)
+    store = Store(conn)
+    store.ensure_source("mastodon", "social")
+    run = store.start_run("mastodon")
+    for i in range(posts):
+        who = "a@m.s" if i < 3 else "b@m.s"
+        key = f"m.s:{i}"
+        store.insert_raw_item("mastodon", RawItem("post", key, title="p", author=who,
+                                                  published_at=at(-5)), run, at(-5),
+                              available_at=at(-5))
+        likes = (0, 2, 6) if i < 3 else (0, 0, 1)
+        for hours, v in zip((-2, -1, 0), likes, strict=True):
+            obs = Observation("post", f"mastodon:{key}", "likes", float(v), observed_at=at(hours))
+            store.add_observations("mastodon", [obs], run, at(hours))
+    return conn
+
+
+def test_social_tiles_use_stored_mastodon_engagement(tmp_path: Path) -> None:
+    from liquidmexx.dashboard.data import command, social
+    conn = _mastodon_world(tmp_path / "s.db", posts=6)
+    s = social(conn, T)
+    assert s is not None
+    assert (s.posts_24h, s.engagement_24h, s.influential, s.top_account) == (6, 21, 1, "a@m.s")
+    assert s.accel == pytest.approx(1.5)  # gained 15 in the last hour vs 6 the hour before
+    kpis = {k.label: k for k in command(conn, load_config(), T).kpis}
+    assert kpis["Engagement acceleration"].value == "+150%" and kpis[
+        "Engagement acceleration"].tone == "ok"
+    assert kpis["Influential accounts"].value == "1" and "a@m.s" in kpis[
+        "Influential accounts"].sub
+    assert kpis["Viral probability"].tone == "na"  # still no validated predictor
+
+
+def test_acceleration_waits_for_enough_history(tmp_path: Path) -> None:
+    from liquidmexx.dashboard.data import command
+    conn = _mastodon_world(tmp_path / "s2.db", posts=3)
+    kpis = {k.label: k for k in command(conn, load_config(), T).kpis}
+    assert kpis["Engagement acceleration"].value == "collecting"
+    assert kpis["Engagement acceleration"].tone == "na"

@@ -25,6 +25,10 @@ _GITHUB_RESERVED = {"orgs", "topics", "trending", "features", "about", "sponsors
 # Sources whose items are discussion/coverage (can confirm an entity from another platform).
 DISCUSSION_SOURCES = {"hackernews", "reddit", "rss"}
 
+# Stored and shown on the dashboard, but never linked to trends: the Stage 6 detector comparison
+# is locked (config/detectors.lock) to the sources it was registered against.
+UNLINKED_SOURCES = {"mastodon"}
+
 
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
@@ -152,6 +156,8 @@ def link_new_items(conn: sqlite3.Connection, batch: int = 5000) -> int:
         try:
             ts = now_iso()
             for r in rows:
+                if r["source_id"] in UNLINKED_SOURCES:
+                    continue
                 text = " \n".join(filter(None, [r["title"], r["body"]]))
                 found = match_text(text, rules)
                 if r["source_id"] in DISCUSSION_SOURCES:

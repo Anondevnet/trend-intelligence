@@ -107,6 +107,22 @@ reddit:
                  "LocalLLaMA", "MachineLearning", "singularity", "ClaudeAI", "AI_Agents"]
     limit: 50
 
+mastodon:
+  # Free, no login: public hashtag timelines on one instance (GET only). Supplies the social
+  # engagement signals (likes/reposts/replies) for the dashboard. NOT linked to trends, so the
+  # locked Stage 6 comparison is unaffected.
+  enabled: true
+  interval_minutes: 30
+  credibility: 0.3
+  params:
+    instance: mastodon.social
+    limit_per_tag: 40
+    max_tags_per_run: 12
+    languages: ["en"]
+    tags:
+      ai: ["AI", "LLM", "AIAgents", "MCP", "OpenSource", "MachineLearning"]
+      crypto: ["Solana", "DeFi", "Crypto", "Bitcoin", "Ethereum", "PredictionMarkets"]
+
 x:
   # Official X API recent search. OFF: needs x.enabled true here, X_BEARER_TOKEN and
   # LIQUIDMEXX_LIVE_X=enabled in .env. Each post read costs unit_usd.post_read (pricing.yaml);

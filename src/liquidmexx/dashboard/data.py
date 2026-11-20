@@ -6,6 +6,7 @@ Nothing here writes: the server opens the database read-only and with ``query_on
 from __future__ import annotations
 
 import sqlite3
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +19,7 @@ from liquidmexx.intel.movers import data_watermark, shift
 from liquidmexx.publishing import kill_switch_engaged, list_drafts
 from liquidmexx.scoring.engine import Scorer
 from liquidmexx.timeutil import parse_iso
+from liquidmexx.trends.identity import UNLINKED_SOURCES
 
 FIRST_COMPARISON = "2026-11-26"
 
@@ -158,8 +160,8 @@ def readiness(conn: sqlite3.Connection, cfg: Config) -> Readiness:
     extra = {r["source_id"]: r for r in conn.execute(
         "SELECT source_id, MIN(substr(available_at,1,10)) first_day, MAX(available_at) last_item"
         " FROM v_raw_items WHERE is_backfill=0 AND is_initial_snapshot=0 GROUP BY source_id")}
-    known = sorted(set(days) | {r["source_id"] for r in conn.execute(
-        "SELECT DISTINCT source_id FROM collection_runs")})
+    known = sorted((set(days) | {r["source_id"] for r in conn.execute(
+        "SELECT DISTINCT source_id FROM collection_runs")}) - UNLINKED_SOURCES)
     rows = []
     for src in known:
         n = days.get(src, 0)
@@ -283,6 +285,74 @@ def lifecycle(n24: int, p24: int, n6: int, p6: int) -> str:
     return "Steady"
 
 
+# ---- social tiles: Mastodon (free) stands in while X is off ----------------------------------
+SOCIAL_SOURCE = "mastodon"
+ENGAGEMENT = ("likes", "reposts", "replies")
+INFLUENCE_MIN = 10        # engagement on an account's posts (24h) to count as influential
+ACCEL_MIN_POSTS = 5       # posts seen 2h ago needed before an acceleration figure is shown
+
+
+@dataclass
+class Social:
+    posts_24h: int
+    engagement_24h: int
+    accel: float | None          # growth of engagement gained: last hour vs the hour before
+    accel_posts: int
+    influential: int
+    top_account: str | None
+    top_engagement: int
+
+
+def social(conn: sqlite3.Connection, as_of: str) -> Social | None:
+    """Engagement signals from stored Mastodon posts. None when no such posts are stored."""
+    t24, t2, t1 = shift(as_of, 24), shift(as_of, 2), shift(as_of, 1)
+    posts = conn.execute(
+        "SELECT external_id, author FROM raw_items WHERE source_id=? AND published_at>?"
+        " AND available_at<=?", (SOCIAL_SOURCE, t24, as_of)).fetchall()
+    if not posts:
+        return None
+    author = {f"{SOCIAL_SOURCE}:{r['external_id']}": r["author"] for r in posts}
+    series: dict[str, dict[str, list[tuple[str, float]]]] = {}
+    marks = ",".join("?" * len(ENGAGEMENT))
+    for r in conn.execute(
+            "SELECT subject_key, metric, value, available_at FROM observations WHERE source_id=?"
+            f" AND metric IN ({marks}) AND available_at<=? AND available_at>=?"
+            " ORDER BY available_at",
+            (SOCIAL_SOURCE, *ENGAGEMENT, as_of, shift(t24, 3))):
+        if r["subject_key"] in author:
+            series.setdefault(r["subject_key"], {}).setdefault(r["metric"], []).append(
+                (r["available_at"], float(r["value"])))
+
+    def at_time(key: str, when: str) -> float | None:
+        total, seen = 0.0, False
+        for pts in series.get(key, {}).values():
+            i = bisect_right([t for t, _ in pts], when)
+            if i:
+                total += pts[i - 1][1]
+                seen = True
+        return total if seen else None
+
+    per_author: dict[str, float] = defaultdict(float)
+    total_now = 0.0
+    gain_recent = gain_prev = 0.0
+    counted = 0
+    for key, who in author.items():
+        now = at_time(key, as_of) or 0.0
+        total_now += now
+        if who:
+            per_author[who] += now
+        e1, e2 = at_time(key, t1), at_time(key, t2)
+        if e2 is not None and e1 is not None:  # seen before the window opened: comparable
+            counted += 1
+            gain_recent += now - e1
+            gain_prev += e1 - e2
+    accel = growth(int(gain_recent), int(gain_prev)) if counted >= ACCEL_MIN_POSTS else None
+    big = {a: v for a, v in per_author.items() if v >= INFLUENCE_MIN}
+    top = max(big, key=lambda a: (big[a], a)) if big else None
+    return Social(len(author), int(total_now), accel, counted, len(big), top,
+                  int(big[top]) if top else 0)
+
+
 def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
     b = {h: shift(as_of, h) for h in (1, 2, 6, 12, 24, 48)}
     rows = conn.execute(
@@ -339,21 +409,42 @@ def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
     g = growth(n1_all, p1_all)
     flagged = sum(1 for t in trend_rows(conn, cfg, as_of)[1]
                   if t.flagged(float(cfg.intel["concentration_warning"])))
+    soc = social(conn, as_of)
+    rising = sum(1 for v in vel if v.stage == "Accelerating")
+    cooling = sum(1 for v in vel if v.stage == "Cooling")
+    if soc is None:
+        accel_kpi = Kpi("Engagement acceleration", "n/a",
+                        "not collected: needs social posts with engagement (X is off)", "na")
+        infl_kpi = Kpi("Influential accounts", "n/a", "not collected: needs social account data",
+                       "na")
+    else:
+        if soc.accel is None:
+            accel_kpi = Kpi("Engagement acceleration", "collecting",
+                            f"needs 2h of history on {ACCEL_MIN_POSTS}+ posts"
+                            f" (Mastodon, {soc.accel_posts} so far)", "na")
+        else:
+            accel_kpi = Kpi("Engagement acceleration", f"{soc.accel:+.0%}",
+                            "likes+reposts+replies gained: last hour vs the hour before"
+                            f" (Mastodon, {soc.accel_posts} posts)")
+        infl_kpi = Kpi("Influential accounts", str(soc.influential),
+                       f"accounts with {INFLUENCE_MIN}+ engagement in 24h (Mastodon)"
+                       + (f" · top: {soc.top_account} ({soc.top_engagement})"
+                          if soc.top_account else ""))
     kpis = [
         Kpi("Items monitored (24h)", f"{items['c']:,}",
-            f"{items['s']} sources. X posts: not collected (X is off)"),
+            f"{items['s']} sources. Social: Mastodon only (X is off)"),
         Kpi("Emerging trends", str(emerging), "rule-based: growing in the last 24h and 6h"),
         Kpi("Trend velocity", "new" if g is None else f"{g:+.0%}",
             f"mentions in the last hour: {n1_all} vs {p1_all} the hour before"),
-        Kpi("Engagement acceleration", "n/a", "not collected: needs an engagement time series",
-            "na"),
-        Kpi("Influential accounts", "n/a", "not collected: needs X account data", "na"),
+        accel_kpi,
+        infl_kpi,
         Kpi("Viral probability", "n/a",
             "no validated predictor yet: the scorer has not beaten plain volume", "na"),
         Kpi("Anomaly alerts", str(spikes),
             f"volume spikes (last hour at least {SPIKE_FACTOR:g}x the 23h average, min"
             f" {SPIKE_MIN_1H}) · {flagged} single-source flags",
             "warn" if spikes or flagged else "ok"),
-        Kpi("Narrative shifts", "n/a", "not computed yet", "na"),
+        Kpi("Narrative shifts", f"{rising}↑ {cooling}↓",
+            "trends accelerating vs cooling (rule-based stages, descriptive)"),
     ]
     return Command(kpis, vel[:15], hourly, int(items["c"]))

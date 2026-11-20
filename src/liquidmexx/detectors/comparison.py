@@ -149,10 +149,15 @@ def compare(results: Sequence[_Result], cfg: Mapping[str, Any]) -> list[Row]:
 
 
 def live_days(conn: sqlite3.Connection) -> dict[str, int]:
-    """Distinct UTC days with live (non-backfill, non-baseline) items, per source."""
+    """Distinct UTC days with live (non-backfill, non-baseline) items, per source.
+
+    Sources that are never linked to trends (dashboard-only) do not count toward readiness.
+    """
+    from liquidmexx.trends.identity import UNLINKED_SOURCES
     return {r["source_id"]: int(r["days"]) for r in conn.execute(
         "SELECT source_id, COUNT(DISTINCT substr(available_at,1,10)) days FROM v_raw_items"
-        " WHERE is_backfill=0 AND is_initial_snapshot=0 GROUP BY source_id")}
+        " WHERE is_backfill=0 AND is_initial_snapshot=0 GROUP BY source_id")
+        if r["source_id"] not in UNLINKED_SOURCES}
 
 
 def readiness(conn: sqlite3.Connection, cfg: Mapping[str, Any]) -> tuple[bool, dict[str, int]]:
