@@ -8,6 +8,7 @@ from liquidmexx.sources.crypto_sources import DefiLlamaAdapter, PolymarketAdapte
 from liquidmexx.sources.feeds import RedditAdapter, RssAdapter
 from liquidmexx.sources.github import GitHubAdapter
 from liquidmexx.sources.hackernews import HackerNewsAdapter
+from liquidmexx.sources.x import XAdapter
 
 ADAPTERS: dict[str, type[SourceAdapter]] = {
     cls.id: cls
@@ -22,5 +23,6 @@ ADAPTERS: dict[str, type[SourceAdapter]] = {
         SolanaRpcAdapter,
         RssAdapter,
         RedditAdapter,
+        XAdapter,
     )
 }

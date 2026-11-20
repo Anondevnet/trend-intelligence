@@ -124,12 +124,20 @@ def test_live_opt_in_needs_the_exact_value(monkeypatch: pytest.MonkeyPatch) -> N
         assert Settings(_env_file=None).live_posting_opt_in is expected  # type: ignore[call-arg]
 
 
-def test_no_live_x_client_exists_in_the_codebase() -> None:
+def test_no_live_x_posting_client_exists_in_the_codebase() -> None:
+    """Posting stays impossible. The one X module (sources/x.py) is a read-only search."""
     src_dir = PROJECT_ROOT / "src" / "liquidmexx"
     for path in src_dir.rglob("*.py"):
         text = path.read_text(encoding="utf-8").lower()
-        for needle in ("api.x.com", "api.twitter.com", "upload.twitter.com", "tweepy"):
+        for needle in ("api.twitter.com", "upload.twitter.com", "tweepy"):
             assert needle not in text, f"{path} references {needle}"
+        if path.name != "x.py" or path.parent.name != "sources":
+            assert "api.x.com" not in text, f"{path} references the X API"
+    x = (src_dir / "sources" / "x.py").read_text(encoding="utf-8").lower()
+    assert x.count("api.x.com") == 1 and "/2/tweets/search/recent" in x
+    for forbidden in ('request("post"', 'method="post"', ".post(", '/2/tweets"', "/2/users",
+                      "oauth1", "access_token_secret", "/likes", "/retweets", "/following"):
+        assert forbidden not in x, f"x.py must stay read-only: found {forbidden}"
 
 
 # ---------------------------------------------------- no post without approval

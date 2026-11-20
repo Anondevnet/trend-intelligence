@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Same pattern for real Anthropic API calls (Stage 8): only "enabled" counts, and
     # config/models.yaml must also say live_calls: true.
     liquidmexx_live_llm: str | None = None
+    # Real X recent-search reads (paid, budget-capped): only "enabled" counts, and
+    # config/sources.yaml must also set x.enabled: true.
+    liquidmexx_live_x: str | None = None
 
     liquidmexx_data_dir: str | None = Field(default=None)
     liquidmexx_config_dir: str | None = Field(default=None)
@@ -75,6 +78,10 @@ class Settings(BaseSettings):
     @property
     def live_posting_opt_in(self) -> bool:
         return (self.liquidmexx_live_posting or "").strip() == "enabled"
+
+    @property
+    def live_x_opt_in(self) -> bool:
+        return (self.liquidmexx_live_x or "").strip() == "enabled"
 
     @property
     def live_llm_opt_in(self) -> bool:

@@ -1,7 +1,7 @@
 # Source adapters. Each can be enabled/disabled independently.
 # interval_minutes: how often `liquidmexx collect --due` runs this source.
 # credibility: prior weight (0-1) used by scoring later; tuned by backtests, not by hand.
-# All sources here are free public APIs. X discovery/search is intentionally absent (off at launch).
+# Sources are free public APIs, except `x` (paid per post read, off by default, capped daily).
 
 github:
   enabled: true
@@ -106,3 +106,18 @@ reddit:
     subreddits: ["solana", "CryptoCurrency", "defi", "ethdev", "Polymarket",
                  "LocalLLaMA", "MachineLearning", "singularity", "ClaudeAI", "AI_Agents"]
     limit: 50
+
+x:
+  # Official X API recent search. OFF: needs x.enabled true here, X_BEARER_TOKEN and
+  # LIQUIDMEXX_LIVE_X=enabled in .env. Each post read costs unit_usd.post_read (pricing.yaml);
+  # budgets.yaml caps X at $0.15/day, so at most ~30 posts/day. Read-only: no writes.
+  enabled: false
+  interval_minutes: 240
+  credibility: 0.5
+  params:
+    max_queries_per_run: 3
+    max_results_per_query: 10     # the API minimum is 10
+    query_suffix: "-is:retweet lang:en"
+    queries:
+      ai: ["\"AI agents\"", "\"MCP server\"", "\"local LLM\""]
+      crypto: ["\"agent payments\"", "Solana DeFi", "\"prediction markets\""]
