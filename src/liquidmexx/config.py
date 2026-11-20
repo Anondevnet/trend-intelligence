@@ -230,3 +230,34 @@ def load_detectors(config_dir: Path | None = None) -> dict[str, Any]:
     if not cfg["ensemble"]["members"]:
         raise ValueError("ensemble needs at least one member")
     return cfg
+
+
+def load_intel(config_dir: Path | None = None) -> dict[str, Any]:
+    """Load intel.yaml (Stage 7) and check the keys the reports rely on."""
+    cfg = _load_yaml("intel.yaml", config_dir)
+    for key in ("window_hours", "lookback_hours", "max_gap_hours", "top_n",
+                "evidence_per_narrative", "concentration_warning", "groups", "headline_feeds",
+                "repo_keywords", "evidence", "crypto", "ai"):
+        if key not in cfg:
+            raise ValueError(f"intel.yaml is missing {key!r}")
+    for group in ("crypto", "ai"):
+        for key in ("groups", "headline_feeds", "repo_keywords"):
+            if group not in cfg[key]:
+                raise ValueError(f"intel.yaml {key} needs a {group!r} entry")
+    seen: dict[str, str] = {}
+    for kind in ("measured_sources", "market_sources", "reported_sources", "discussion_sources"):
+        for src in cfg["evidence"].get(kind, []):
+            if src in seen:
+                raise ValueError(f"intel.yaml: source {src!r} is in both {seen[src]} and {kind}")
+            seen[src] = kind
+    for key in ("window_hours", "lookback_hours", "max_gap_hours"):
+        if float(cfg[key]) <= 0:
+            raise ValueError(f"intel.yaml {key} must be positive")
+    return cfg
+
+
+def rss_feed_categories(config_dir: Path | None = None) -> dict[str, str]:
+    """RSS feed id -> category from sources.yaml (RSS item ids are '<feed>:<hash>')."""
+    rss = load_sources(config_dir).get("rss")
+    feeds = rss.params.get("feeds", []) if rss else []
+    return {str(f["id"]): str(f.get("category", "")) for f in feeds}

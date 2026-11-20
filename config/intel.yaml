@@ -1,0 +1,53 @@
+# Stage 7: crypto and AI intelligence reports (deterministic, no network, no LLM).
+# Reports read only rows with available_at <= as_of, so a past report can be rebuilt exactly.
+# Nothing here ranks content for posting or gives investment recommendations.
+
+window_hours: 24        # narrative activity and new listings: (as_of - window, as_of]
+lookback_hours: 24      # movers: value now vs value known at as_of - lookback
+max_gap_hours: 6        # a reading older than this (relative to its target time) is stale
+top_n: 10
+evidence_per_narrative: 3
+concentration_warning: 0.8   # flag a narrative when one source supplies this share of it
+
+# Taxonomy categories in each report. Entity trends are covered by the repo/model sections.
+groups:
+  crypto: [solana, defi, depin, crypto-ai, crypto-infra, prediction-markets, trading]
+  ai: [ai-agents, mcp, local-ai, open-models, ai-research, crypto-ai]
+
+# RSS feeds carry a category in sources.yaml; these feed categories go into each report.
+headline_feeds:
+  crypto: [crypto, defi, solana, prediction-markets]
+  ai: [ai]
+
+# GitHub repos go into a report when their name, description or topics match (word-bounded).
+repo_keywords:
+  crypto: ["solana", "defi", "ethereum", "evm", "blockchain", "web3", "depin", "polymarket",
+           "prediction-markets", "crypto", "onchain", "on-chain", "dex", "stablecoin", "wallet"]
+  ai: ["llm", "ai", "agent", "agents", "ai-agents", "mcp", "local-llm", "inference", "rag",
+       "model", "gpt", "claude", "transformer", "machine-learning", "agentic"]
+
+# How evidence is labelled. "verified" only ever means "this number is what the source's API
+# reported at this time". A news headline or a post is not verified until something measured
+# backs it up (the Stage 8 claim_verification task, with approval for live calls).
+evidence:
+  measured_sources: [defillama, github, huggingface, solana_rpc, mcp_registry]
+  market_sources: [polymarket]      # prices/volumes of bets: expectations, not facts
+  reported_sources: [rss, arxiv]    # publications: the article exists, its claims are unverified
+  discussion_sources: [hackernews, reddit]
+  # Case-insensitive whole-word/phrase matches in title or summary mark an item as a rumor.
+  rumor_terms: ["rumor", "rumors", "rumour", "rumours", "reportedly", "unconfirmed",
+                "sources say", "leak", "leaked", "leaks", "allegedly", "insiders say",
+                "people familiar with"]
+
+crypto:
+  min_protocol_tvl_usd: 10000000    # protocol TVL movers below this are noise
+  min_chain_tvl_usd: 10000000
+  min_market_volume_24h_usd: 100000 # Polymarket markets
+  market_keywords: ["crypto", "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "etf",
+                    "stablecoin", "coinbase", "binance", "defi", "token", "airdrop", "sec"]
+
+ai:
+  min_model_likes: 10
+  # Stars are attention, not quality. These are listed in every report as not collected.
+  repo_not_collected: ["commit frequency", "contributor growth", "release activity",
+                       "documentation quality", "practical usefulness"]

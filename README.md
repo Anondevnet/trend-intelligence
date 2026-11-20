@@ -5,7 +5,7 @@ It collects signals from public sources and stores them in a history that is nev
 It then scores which topics are *accelerating* rather than merely popular, and backtests those predictions honestly.
 Later stages draft original, sourced content for review and posting.
 
-> **Status:** Stages 1–5 are done (collection, scoring, backtesting). The Stage 6 detector code is written; its
+> **Status:** Stages 1–5 and 7 are done (collection, scoring, backtesting, crypto and AI intelligence reports). The Stage 6 detector code is written; its
 > comparison waits for 7+ days of live data (earliest 2026-11-26; settings locked in `config/detectors.lock`). Also done: the Stage 10 posting
 > safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only,
 > and the Stage 8 Claude client (routing, caps, validation with one Sonnet retry, caching, batches),
@@ -45,6 +45,7 @@ uv run liquidmexx link                    # link new items to trends/aliases (al
 uv run liquidmexx score                   # deterministic trend scores from stored history (no network)
 uv run liquidmexx backtest                # point-in-time backtests (1/7/30 days) vs baselines
 uv run liquidmexx compare                 # Stage 6 detector comparison (refuses before 7+ live days)
+uv run liquidmexx intel crypto            # Stage 7 report from stored data (also: intel ai, --as-of, --json)
 uv run liquidmexx backfill github-stars   # honest star-history backfill from starred_at timestamps
 uv run liquidmexx backfill hackernews --days 30
 uv run liquidmexx queue list              # post drafts awaiting review (approval is interactive only)
@@ -67,6 +68,7 @@ Scheduled collection uses launchd. Install it yourself with the commands in [`do
 | `config/scoring.yaml` | Scoring windows, exclusions, clone-farm discount, sub-score weights |
 | `config/backtest.yaml` | Backtest horizons, outcome label, walk-forward settings |
 | `config/detectors.yaml` | Stage 6 detectors (hotlist, signal_sum, ensemble) and comparison rules. **Locked**: `config/detectors.lock` |
+| `config/intel.yaml` | Stage 7 report groups, mover windows, evidence labels and rumor wording |
 | `config/publishing.yaml` | Posting mode (off), kill switch, approval TTL, daily cap, quality-gate rules |
 | `config/env.template` | Template for `.env`, with placeholders only |
 

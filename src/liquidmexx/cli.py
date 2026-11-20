@@ -16,16 +16,19 @@ from liquidmexx.config import (
     load_backtest,
     load_budgets,
     load_detectors,
+    load_intel,
     load_publishing,
     load_scoring,
     load_sources,
     load_taxonomy,
+    rss_feed_categories,
     source_credibility,
 )
 from liquidmexx.costs.budget import BudgetGuard
 from liquidmexx.db import backup, open_db
 from liquidmexx.detectors import compare, readiness
 from liquidmexx.detectors.comparison import check_lock
+from liquidmexx.intel import build_report, render
 from liquidmexx.publishing import (
     DryRunTransport,
     Publisher,
@@ -309,6 +312,16 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_intel(args: argparse.Namespace) -> int:
+    """Stage 7 report from stored history only (no network, no LLM, nothing saved)."""
+    conn = open_db()
+    as_of = normalize_iso(args.as_of) if args.as_of else now_iso()
+    rep = build_report(conn, args.group, as_of, load_intel(), load_scoring(),
+                       source_credibility(), rss_feed_categories())
+    print(rep.to_json() if args.json else render(rep))
+    return 0
+
+
 def cmd_backup(_: argparse.Namespace) -> int:
     conn = open_db()
     path = backup(conn, get_settings().data_dir / "backups", label="manual")
@@ -432,6 +445,11 @@ def build_parser() -> argparse.ArgumentParser:
     cp.add_argument("--horizon", type=int, action="append")
     cp.add_argument("--no-save", action="store_true")
     cp.set_defaults(func=cmd_compare)
+    ip = sub.add_parser("intel", help="Stage 7 crypto/AI report from stored data (no network)")
+    ip.add_argument("group", choices=["crypto", "ai"])
+    ip.add_argument("--as-of", help="ISO time (default now); reads only data known by then")
+    ip.add_argument("--json", action="store_true")
+    ip.set_defaults(func=cmd_intel)
     qp = sub.add_parser("queue", help="post drafts: add, list, show, approve, reject, publish")
     qsub = qp.add_subparsers(dest="action", required=True)
     qa = qsub.add_parser("add", help="add a draft (runs the quality gate; never approves)")

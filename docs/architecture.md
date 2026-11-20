@@ -135,6 +135,46 @@ Each verdict comes with recall@10, false-positive rate@10 and walk-forward F1. L
 
 `compare` refuses to run, and saves nothing, until at least 2 sources have 7 or more days of live (non-backfill) collection. Live collection started on 2026-11-19, so the first comparison is due around 2026-11-26. No comparison has been run yet.
 
+## Crypto and AI intelligence (Stage 7)
+
+`liquidmexx intel crypto|ai [--as-of ISO] [--json]` prints a report rebuilt from stored history.
+It uses no network and no LLM, saves nothing, and reads only rows with `available_at <= as_of`, so
+a past report can be rebuilt exactly (a test checks that later data doesn't change it). Settings
+are in `config/intel.yaml`.
+
+| Section | Crypto report | AI report |
+|---|---|---|
+| Narrative activity | solana, defi, depin, crypto-ai, crypto-infra, prediction-markets, trading | ai-agents, mcp, local-ai, open-models, ai-research, crypto-ai |
+| Measured movers | Protocol and chain TVL (DeFiLlama), Solana non-vote TPS | Hugging Face model likes |
+| New listings | New on DeFiLlama (a listing is not necessarily a launch) | New MCP registry servers, new arXiv papers |
+| Other | Polymarket crypto markets by 24h volume | |
+| Both | GitHub repos (age, stars, star and fork growth, stars per day, clone-farm flag) and RSS headlines | |
+
+- **Narratives** use the scorer's eligible mentions (first-run catalogs excluded, clone farms
+  discounted) in the last 24h. They are ordered by weighted mentions, because volume is the only
+  ranking not beaten so far. The latest stored score is shown next to it. Neither is a prediction.
+- **Concentration.** When one source supplies 80% or more of a narrative's activity, the report
+  says so. On 2026-11-20, for example, 99% of `agent-payments` came from one publisher's bulk
+  MCP registry listings.
+- **Movers** compare the freshest reading at T (no older than 6h) with the reading that was
+  *known* at T − 24h. Without such a reading the change is shown as unknown, never guessed.
+- **Evidence labels.** Every evidence row carries an evidence class and a `claim_status` in the
+  drafts' vocabulary:
+
+  | Class | Sources | `claim_status` |
+  |---|---|---|
+  | measured | DeFiLlama, GitHub, Hugging Face, Solana RPC, MCP registry | verified: only that the API returned this value or item at that time |
+  | market_odds | Polymarket | speculative: bets are expectations, not facts |
+  | reported | RSS, arXiv | speculative: the publication exists, its claims are not verified here |
+  | discussion | Hacker News, Reddit | speculative |
+  | rumor | reported or discussion items with rumor wording ("reportedly", "leaked", "sources say", ...) | rumor |
+
+- **GitHub stars are attention, not quality.** Each report lists what is not collected: commit
+  frequency, contributor growth, release activity, documentation quality and practical
+  usefulness. Brand-new repos with fast stars are often promotion or spam.
+- **No recommendations.** Reports describe activity and measured changes. They never say what to
+  buy or sell, and they never feed posting directly.
+
 ## Stage status
 
 | Stage | What it adds | Status |
@@ -143,7 +183,7 @@ Each verdict comes with recall@10, false-positive rate@10 and walk-forward F1. L
 | 4 | Deterministic scorer | Done |
 | 5 | Point-in-time backtester | Done (scorer loses to `volume_only` so far) |
 | 6 | Detector comparison | Code done and settings locked; first run due 2026-11-26, see [`comparison-checklist.md`](comparison-checklist.md) |
-| 7 | Narrative engines | Planned |
+| 7 | Crypto and AI intelligence | Done: `liquidmexx intel crypto` and `intel ai`, descriptive reports with labelled evidence |
 | 8 | Claude research and content | Offline client done (routing, caps, validation, caching, batches); real calls off, see [`costs-and-pricing.md`](costs-and-pricing.md) |
 | 9 | Dashboard | Planned |
 | 10 | X publishing | Safeguards done (off, draft-only, approval-gated); no live X transport exists, see [`publishing-safety.md`](publishing-safety.md) |
