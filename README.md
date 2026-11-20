@@ -5,7 +5,7 @@ It collects signals from public sources and stores them in a history that is nev
 It then scores which topics are *accelerating* rather than merely popular, and backtests those predictions honestly.
 Later stages draft original, sourced content for review and posting.
 
-> **Status:** Stages 1–5 and 7 are done (collection, scoring, backtesting, crypto and AI intelligence reports). The Stage 6 detector code is written; its
+> **Status:** Stages 1–5, 7 and 9 are done (collection, scoring, backtesting, crypto and AI intelligence reports, a local read-only dashboard). The Stage 6 detector code is written; its
 > comparison waits for 7+ days of live data (earliest 2026-11-26; settings locked in `config/detectors.lock`). Also done: the Stage 10 posting
 > safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only,
 > and the Stage 8 Claude client (routing, caps, validation with one Sonnet retry, caching, batches),
@@ -46,6 +46,7 @@ uv run liquidmexx score                   # deterministic trend scores from stor
 uv run liquidmexx backtest                # point-in-time backtests (1/7/30 days) vs baselines
 uv run liquidmexx compare                 # Stage 6 detector comparison (refuses before 7+ live days)
 uv run liquidmexx intel crypto            # Stage 7 report from stored data (also: intel ai, --as-of, --json)
+uv run liquidmexx dashboard               # read-only dashboard at http://127.0.0.1:8741/ (Ctrl+C to stop)
 uv run liquidmexx backfill github-stars   # honest star-history backfill from starred_at timestamps
 uv run liquidmexx backfill hackernews --days 30
 uv run liquidmexx queue list              # post drafts awaiting review (approval is interactive only)

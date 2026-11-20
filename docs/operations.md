@@ -28,6 +28,7 @@ uv run liquidmexx score --as-of 2026-11-12T12:00:00Z --no-save   # what we knew 
 uv run liquidmexx score --verify 2                               # recompute run 2 exactly
 uv run liquidmexx backtest                                       # 1/7/30-day backtests, all detectors
 uv run liquidmexx intel crypto                                   # Stage 7 report (also: intel ai)
+uv run liquidmexx dashboard                                      # read-only page at http://127.0.0.1:8741/
 uv run liquidmexx posting status                                 # posting mode, kill switch
 uv run liquidmexx posting kill --reason "..."                    # emergency stop for all publishing
 ```

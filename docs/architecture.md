@@ -175,6 +175,35 @@ are in `config/intel.yaml`.
 - **No recommendations.** Reports describe activity and measured changes. They never say what to
   buy or sell, and they never feed posting directly.
 
+## Dashboard (Stage 9)
+
+`liquidmexx dashboard [--port 8741]` serves a local, read-only page at `http://127.0.0.1:8741/`.
+It uses only the Python standard library (no new dependencies) and renders HTML on the server,
+with no JavaScript.
+
+| Page | Shows |
+|---|---|
+| `/` | Live days per source toward the Stage 6 comparison, lock status and readiness; top trends (latest stored scores plus 24h mentions by source); posting mode, kill switch and draft queue; spend today against daily and per-tier caps; last collection run per source |
+| `/intel/crypto`, `/intel/ai` | The Stage 7 reports |
+
+- **Every number comes from stored data.** Each page load reads `data/liquidmexx.db` and the
+  config files. Nothing is cached, sampled or illustrative.
+- **Concentration flag.** Any topic where one source supplies 80% or more of its last-24h
+  activity is flagged, for example `agent-payments`, which is nearly all MCP registry listings.
+  With very few mentions the flag is trivially true (one mention is 100% of one source).
+- **Read-only database.** Each request opens the database with `mode=ro` and
+  `PRAGMA query_only = ON`, never migrates, and closes it again. A missing database gives an
+  error page; it is never created.
+- **Local only.** The server binds to 127.0.0.1, and there is no option to change that. Requests
+  whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` are refused (421), which
+  blocks DNS-rebinding.
+- **Nothing to click that changes anything.** Only GET and HEAD are answered; every other method
+  gets 405. Pages have no forms, buttons or scripts, and the content-security policy forbids
+  them (`default-src 'none'; form-action 'none'`). Approving and publishing stay in the terminal.
+- **Safe rendering.** All collected text is HTML-escaped. Links are kept only for http(s) URLs
+  and open with `noopener noreferrer`.
+- Times are shown in America/Detroit, with the UTC value in a tooltip.
+
 ## Stage status
 
 | Stage | What it adds | Status |
@@ -185,7 +214,7 @@ are in `config/intel.yaml`.
 | 6 | Detector comparison | Code done and settings locked; first run due 2026-11-26, see [`comparison-checklist.md`](comparison-checklist.md) |
 | 7 | Crypto and AI intelligence | Done: `liquidmexx intel crypto` and `intel ai`, descriptive reports with labelled evidence |
 | 8 | Claude research and content | Offline client done (routing, caps, validation, caching, batches); real calls off, see [`costs-and-pricing.md`](costs-and-pricing.md) |
-| 9 | Dashboard | Planned |
+| 9 | Dashboard | Done: `liquidmexx dashboard`, local (127.0.0.1) and read-only |
 | 10 | X publishing | Safeguards done (off, draft-only, approval-gated); no live X transport exists, see [`publishing-safety.md`](publishing-safety.md) |
 | 11 | Engagement analytics | Planned |
 | 12 | Learning engine | Planned |

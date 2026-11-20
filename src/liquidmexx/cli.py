@@ -322,6 +322,13 @@ def cmd_intel(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Local read-only dashboard. Binds to 127.0.0.1 only; never migrates or writes."""
+    from liquidmexx.dashboard import serve
+
+    return serve(args.port)
+
+
 def cmd_backup(_: argparse.Namespace) -> int:
     conn = open_db()
     path = backup(conn, get_settings().data_dir / "backups", label="manual")
@@ -450,6 +457,9 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--as-of", help="ISO time (default now); reads only data known by then")
     ip.add_argument("--json", action="store_true")
     ip.set_defaults(func=cmd_intel)
+    dp = sub.add_parser("dashboard", help="local read-only dashboard on 127.0.0.1")
+    dp.add_argument("--port", type=int, default=8741)
+    dp.set_defaults(func=cmd_dashboard)
     qp = sub.add_parser("queue", help="post drafts: add, list, show, approve, reject, publish")
     qsub = qp.add_subparsers(dest="action", required=True)
     qa = qsub.add_parser("add", help="add a draft (runs the quality gate; never approves)")
