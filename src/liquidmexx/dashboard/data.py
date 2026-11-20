@@ -17,6 +17,7 @@ from liquidmexx.detectors.comparison import check_lock, live_days
 from liquidmexx.intel.movers import data_watermark, shift
 from liquidmexx.publishing import kill_switch_engaged, list_drafts
 from liquidmexx.scoring.engine import Scorer
+from liquidmexx.timeutil import parse_iso
 
 FIRST_COMPARISON = "2026-11-26"
 
@@ -103,7 +104,39 @@ class Posting:
 
 
 @dataclass
+class Kpi:
+    """One top-level tile. ``tone`` is ok / warn / na (na = not collected or not validated)."""
+
+    label: str
+    value: str
+    sub: str
+    tone: str = "ok"
+
+
+@dataclass
+class Velocity:
+    slug: str
+    n24: int
+    n1: int
+    g1h: float | None
+    g6h: float | None
+    g24h: float | None
+    sources: int
+    first_seen: str | None
+    stage: str
+
+
+@dataclass
+class Command:
+    kpis: list[Kpi]
+    velocities: list[Velocity]
+    hourly: list[int]  # mentions per hour, oldest first, 24 entries ending at as_of
+    items_24h: int
+
+
+@dataclass
 class Overview:
+    command: Command
     as_of: str
     data_watermark: str | None
     readiness: Readiness
@@ -217,8 +250,110 @@ def overview(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Overview:
         " GROUP BY source_id, mode) ORDER BY source_id, mode")]
     counts = {t: int(conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
               for t in ("raw_items", "observations", "trends", "trend_mentions", "api_usage")}
-    return Overview(as_of, data_watermark(conn, as_of), readiness(conn, cfg), run, trends,
+    return Overview(command(conn, cfg, as_of), as_of, data_watermark(conn, as_of),
+                    readiness(conn, cfg), run, trends,
                     float(cfg.intel["concentration_warning"]), posting(conn, cfg),
                     spend(conn, cfg, as_of), cfg.models.live_calls, cfg.live_llm_opt_in, runs,
                     counts)
 
+
+
+# ---- command center: velocity and lifecycle, all from stored mentions -------------------------
+MIN_MENTIONS = 3  # below this a trend is only "detection"
+SPIKE_MIN_1H = 5
+SPIKE_FACTOR = 3.0
+
+
+def growth(now: int, before: int) -> float | None:
+    """Fractional growth; None when there is nothing before to compare with (new activity)."""
+    return None if before <= 0 else (now - before) / before
+
+
+def lifecycle(n24: int, p24: int, n6: int, p6: int) -> str:
+    """Rule-based, descriptive stage. Not validated as a predictor (see the Stage 5 backtest)."""
+    if n24 < MIN_MENTIONS:
+        return "Detection"
+    g24, g6 = growth(n24, p24), growth(n6, p6)
+    if g6 is not None and g6 <= -0.3:
+        return "Cooling"
+    if (g6 is None or g6 >= 1.0) and (g24 is None or g24 >= 1.0):
+        return "Accelerating"
+    if (g24 is None or g24 > 0.0) and (g6 is None or g6 > 0.0):
+        return "Emerging"
+    return "Steady"
+
+
+def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
+    b = {h: shift(as_of, h) for h in (1, 2, 6, 12, 24, 48)}
+    rows = conn.execute(
+        "SELECT DISTINCT m.trend_id, m.raw_item_id, t.slug, m.source_id, m.available_at"
+        " FROM trend_mentions m JOIN trends t ON t.id=m.trend_id"
+        " JOIN v_raw_items r ON r.id=m.raw_item_id"
+        " WHERE m.available_at<=? AND m.available_at>? AND r.is_backfill=0"
+        " AND r.is_initial_snapshot=0", (as_of, b[48])).fetchall()
+    per: dict[str, dict[str, Any]] = {}
+    hourly = [0] * 24
+    end = parse_iso(as_of)
+    for r in rows:
+        d = per.setdefault(r["slug"], {"n1": 0, "p1": 0, "n6": 0, "p6": 0, "n24": 0, "p24": 0,
+                                       "src": set(), "first": r["available_at"]})
+        av = r["available_at"]
+        d["first"] = min(d["first"], av)
+        if av > b[24]:
+            d["n24"] += 1
+            d["src"].add(r["source_id"])
+            age_h = int((end - parse_iso(av)).total_seconds() // 3600)
+            if 0 <= age_h < 24:
+                hourly[23 - age_h] += 1
+        else:
+            d["p24"] += 1
+        if av > b[1]:
+            d["n1"] += 1
+        elif av > b[2]:
+            d["p1"] += 1
+        if av > b[6]:
+            d["n6"] += 1
+        elif av > b[12]:
+            d["p6"] += 1
+    vel = []
+    spikes = emerging = 0
+    for slug, d in per.items():
+        if d["n24"] == 0:
+            continue
+        stage = lifecycle(d["n24"], d["p24"], d["n6"], d["p6"])
+        rest_mean = (d["n24"] - d["n1"]) / 23
+        if d["n1"] >= SPIKE_MIN_1H and d["n1"] >= SPIKE_FACTOR * rest_mean:
+            spikes += 1
+        if stage in ("Emerging", "Accelerating"):
+            emerging += 1
+        vel.append(Velocity(slug, d["n24"], d["n1"], growth(d["n1"], d["p1"]),
+                            growth(d["n6"], d["p6"]), growth(d["n24"], d["p24"]),
+                            len(d["src"]), d["first"], stage))
+    vel.sort(key=lambda v: (-v.n24, v.slug))
+    items = conn.execute(
+        "SELECT COUNT(*) c, COUNT(DISTINCT source_id) s FROM v_raw_items WHERE available_at<=?"
+        " AND available_at>? AND is_backfill=0 AND is_initial_snapshot=0", (as_of, b[24])
+    ).fetchone()
+    n1_all = sum(d["n1"] for d in per.values())
+    p1_all = sum(d["p1"] for d in per.values())
+    g = growth(n1_all, p1_all)
+    flagged = sum(1 for t in trend_rows(conn, cfg, as_of)[1]
+                  if t.flagged(float(cfg.intel["concentration_warning"])))
+    kpis = [
+        Kpi("Items monitored (24h)", f"{items['c']:,}",
+            f"{items['s']} sources. X posts: not collected (X is off)"),
+        Kpi("Emerging trends", str(emerging), "rule-based: growing in the last 24h and 6h"),
+        Kpi("Trend velocity", "new" if g is None else f"{g:+.0%}",
+            f"mentions in the last hour: {n1_all} vs {p1_all} the hour before"),
+        Kpi("Engagement acceleration", "n/a", "not collected: needs an engagement time series",
+            "na"),
+        Kpi("Influential accounts", "n/a", "not collected: needs X account data", "na"),
+        Kpi("Viral probability", "n/a",
+            "no validated predictor yet: the scorer has not beaten plain volume", "na"),
+        Kpi("Anomaly alerts", str(spikes),
+            f"volume spikes (last hour at least {SPIKE_FACTOR:g}x the 23h average, min"
+            f" {SPIKE_MIN_1H}) · {flagged} single-source flags",
+            "warn" if spikes or flagged else "ok"),
+        Kpi("Narrative shifts", "n/a", "not computed yet", "na"),
+    ]
+    return Command(kpis, vel[:15], hourly, int(items["c"]))

@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from liquidmexx.dashboard.data import Overview, TrendRow
+from liquidmexx.dashboard.data import Command, Overview, TrendRow
 from liquidmexx.intel.reports import Report
 from liquidmexx.timeutil import parse_iso
 
@@ -45,6 +45,22 @@ var(--line)}
 .flag{color:var(--warn);font-size:12.5px}
 .ev{color:var(--muted);font-size:12.5px;margin-left:12px}
 a{color:var(--accent)}
+/* command center: dark, like the reference mockups */
+body.cc{--bg:#0b1220;--fg:#e6edf7;--muted:#8b9bb4;--line:#22304a;--card:#111a2e;--accent:#60a5fa;
+--warn:#fdba74;--warnbg:#2b1a0e;--ok:#86efac;--okbg:#0f2617}
+.brand{display:flex;gap:12px;align-items:center}.live{color:#86efac;font-size:12px;letter-spacing:.08em}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:12px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);
+border-radius:10px;padding:12px 14px}
+.kpi.warn{border-top-color:#f59e0b}.kpi.na{border-top-color:#475569}
+.kpi .l{color:var(--muted);font-size:12.5px}.kpi .v{font-size:30px;font-weight:700;margin:2px 0}
+.kpi.na .v{color:var(--muted)}.kpi .s{color:var(--muted);font-size:12px}
+.grid2{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+@media (max-width:800px){.grid2{grid-template-columns:1fr}}
+svg.chart{width:100%;height:auto}
+.stage{display:inline-block;padding:0 8px;border-radius:9px;font-size:12px;border:1px solid
+var(--line)}.stage.Accelerating{color:#86efac}.stage.Emerging{color:#60a5fa}
+.stage.Cooling{color:#fdba74}.stage.Detection,.stage.Steady{color:var(--muted)}
 """
 
 
@@ -98,13 +114,17 @@ def flag_line(share: float | None, source: str | None, threshold: float) -> str:
             " one source, not broad attention</div>")
 
 
-def page(title: str, body: str, as_of: str) -> str:
+def page(title: str, body: str, as_of: str, *, refresh: int | None = None,
+         dark: bool = False) -> str:
+    meta = f"<meta http-equiv=refresh content={refresh}>" if refresh else ""
     return (
-        "<!doctype html><html lang=en><head><meta charset=utf-8>"
+        "<!doctype html><html lang=en><head><meta charset=utf-8>" + meta +
         '<meta name=viewport content="width=device-width,initial-scale=1">'
         '<meta name=referrer content="no-referrer">'
-        f"<title>{esc(title)}</title><link rel=stylesheet href=/style.css></head><body><main>"
-        f"<header><h1>{esc(title)}</h1><nav><a href=/>Overview</a>"
+        f"<title>{esc(title)}</title><link rel=stylesheet href=/style.css></head>"
+        f"<body{' class=cc' if dark else ''}><main>"
+        f"<header><h1>{esc(title)}</h1><nav><a href=/>Command Center</a>"
+        "<a href=#emerging>Emerging Trends</a>"
         "<a href=/intel/crypto>Crypto report</a><a href=/intel/ai>AI report</a></nav>"
         f'<span class="meta">as of {local(as_of)} · read-only · local only</span></header>'
         f"{body}"
@@ -201,9 +221,51 @@ def _runs(ov: Overview) -> str:
                      "error"], rows, {4, 5}) + "</section>")
 
 
+def _fmt_growth(g: float | None) -> str:
+    return "new" if g is None else f"{g:+.0%}"
+
+
+def _chart(hourly: list[int]) -> str:
+    top = max(hourly) or 1
+    w, h = 24 * 20, 140
+    bars = "".join(
+        f'<rect x="{i * 20 + 2}" y="{h - int(v / top * (h - 10))}" width="16"'
+        f' height="{int(v / top * (h - 10))}" rx="2" fill="#60a5fa"><title>{v} mentions,'
+        f" {23 - i}h ago</title></rect>" for i, v in enumerate(hourly))
+    return (f'<svg class="chart" viewBox="0 0 {w} {h + 14}" role="img"'
+            ' aria-label="Mentions per hour, last 24 hours">' + bars
+            + f'<text x="2" y="{h + 12}" fill="#8b9bb4" font-size="10">24h ago</text>'
+            f'<text x="{w - 2}" y="{h + 12}" fill="#8b9bb4" font-size="10"'
+            ' text-anchor="end">now</text></svg>')
+
+
+def _command(c: Command) -> str:
+    kpis = "".join(f'<div class="kpi {esc(k.tone)}"><div class="l">{esc(k.label)}</div>'
+                   f'<div class="v">{esc(k.value)}</div><div class="s">{esc(k.sub)}</div></div>'
+                   for k in c.kpis)
+    rows = [(esc(v.slug), f'<span class="stage {esc(v.stage)}">{esc(v.stage)}</span>',
+             str(v.n24), _fmt_growth(v.g1h), _fmt_growth(v.g6h), _fmt_growth(v.g24h),
+             str(v.sources), local(v.first_seen)) for v in c.velocities]
+    tbl = table(["trend", "stage", "mentions 24h", "growth 1h", "growth 6h", "growth 24h",
+                 "sources", "first seen"], rows, {2, 3, 4, 5, 6}) if rows else \
+        '<p class="note">No linked mentions in the last 48h yet.</p>'
+    return (f'<div class="kpis">{kpis}</div><div class="grid2"><section><h2>Mentions per hour'
+            f"</h2>{_chart(c.hourly)}<p class=note>Linked mentions from collected sources (no X"
+            " data). Refreshes every 60s from stored data; collection runs every 15 min.</p>"
+            '</section><section><h2>How to read this</h2><p class="note">Stages are simple'
+            " rules on mention growth (Detection, Emerging, Accelerating, Steady, Cooling). They"
+            " are descriptive, not validated predictions. Growth is shown for 1h, 6h and 24h"
+            " because collection runs every 15 minutes, so 5-minute growth is not measurable."
+            ' &quot;new&quot; means nothing to compare with yet. n/a tiles need data that is'
+            " not collected.</p></section></div>"
+            f'<section id=emerging><h2>Emerging trends</h2>{tbl}</section>')
+
+
 def overview_page(ov: Overview) -> str:
-    body = _readiness(ov) + _trends(ov) + _posting(ov) + _spend(ov) + _runs(ov)
-    return page("Liquidmexx dashboard", body, ov.as_of)
+    body = (_command(ov.command) + "<h2>System</h2>" + _readiness(ov) + _trends(ov)
+            + _posting(ov) + _spend(ov) + _runs(ov))
+    return page("Trend Intelligence \u00b7 Command Center", body, ov.as_of, refresh=60,
+                dark=True)
 
 
 # ---- intel reports ---------------------------------------------------------------------------

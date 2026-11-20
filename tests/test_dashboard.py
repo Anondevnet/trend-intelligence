@@ -165,7 +165,7 @@ def request(port: int, method: str, path: str, host: str | None = None
 
 def test_server_serves_get_with_security_headers(server: int) -> None:
     status, headers, body = request(server, "GET", "/")
-    assert status == 200 and "Liquidmexx dashboard" in body
+    assert status == 200 and "Command Center" in body
     assert "form-action 'none'" in headers["content-security-policy"]
     assert headers["x-frame-options"] == "DENY" and headers["cache-control"] == "no-store"
     assert request(server, "GET", "/style.css")[0] == 200
@@ -236,3 +236,26 @@ def test_busy_port_fails_with_a_message(capsys: pytest.CaptureFixture[str]) -> N
     finally:
         holder.server_close()
     assert "cannot listen on 127.0.0.1" in capsys.readouterr().out
+
+
+# ---- command center ---------------------------------------------------------------------------
+def test_command_center_tiles_are_honest(db: Path) -> None:
+    status, body = page(db, "/")
+    assert status == 200
+    for label in ("Items monitored (24h)", "Emerging trends", "Trend velocity",
+                  "Engagement acceleration", "Influential accounts", "Viral probability",
+                  "Anomaly alerts", "Narrative shifts"):
+        assert label in body
+    # metrics that need X data are shown as not collected, never as made-up numbers
+    assert body.count("kpi na") == 4
+    assert "not collected" in body and "no validated predictor" in body
+    assert "http-equiv=refresh" in body
+    assert "<script" not in body.lower().replace("&lt;script", "")
+
+
+def test_lifecycle_rules_are_descriptive() -> None:
+    from liquidmexx.dashboard.data import lifecycle
+    assert lifecycle(2, 0, 2, 0) == "Detection"
+    assert lifecycle(10, 0, 8, 0) == "Accelerating"
+    assert lifecycle(10, 8, 3, 2) == "Emerging"
+    assert lifecycle(10, 8, 1, 5) == "Cooling"
