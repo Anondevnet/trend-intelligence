@@ -25,7 +25,7 @@ from liquidmexx.config import (
     source_credibility,
 )
 from liquidmexx.dashboard import render
-from liquidmexx.dashboard.data import Config, connect_readonly, overview
+from liquidmexx.dashboard.data import Config, connect_readonly, drafts_view, overview
 from liquidmexx.intel.reports import build_report
 from liquidmexx.settings import get_settings
 from liquidmexx.timeutil import now_iso
@@ -59,6 +59,9 @@ def render_path(path: str, conn: sqlite3.Connection, cfg: Config, as_of: str
         return 200, "text/css; charset=utf-8", render.CSS
     if route == "/":
         return 200, "text/html; charset=utf-8", render.overview_page(overview(conn, cfg, as_of))
+    if route == "/drafts":
+        return 200, "text/html; charset=utf-8", render.drafts_page(
+            drafts_view(conn, cfg, as_of), as_of)
     if route in ("/intel/crypto", "/intel/ai"):
         group = route.rsplit("/", 1)[1]
         rep = build_report(conn, group, as_of, cfg.intel, cfg.scoring, cfg.credibility,

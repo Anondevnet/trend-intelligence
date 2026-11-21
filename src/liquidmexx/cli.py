@@ -329,6 +329,30 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     return serve(args.port)
 
 
+def cmd_compose(args: argparse.Namespace) -> int:
+    """Write post drafts from measured trend activity. Preview by default; --save queues them."""
+    from liquidmexx.dashboard.data import command
+    from liquidmexx.dashboard.server import load_config
+    from liquidmexx.publishing.composer import compose, save
+
+    conn = open_db()
+    cfg = load_publishing()
+    as_of = normalize_iso(args.as_of) if args.as_of else now_iso()
+    vel = command(conn, load_config(), as_of).velocities
+    drafts = compose(conn, cfg, vel, as_of, limit=args.limit)
+    if not drafts:
+        print("no drafts: nothing is rising or engaging enough right now (or already drafted)")
+        return 0
+    for c in drafts:
+        print(f"[{c.slug}] style={c.style} ({len(c.text)} chars)\n  {c.text}")
+    if not args.save:
+        print("\npreview only. Re-run with --save to put these in the approval queue.")
+        return 0
+    ids = save(conn, cfg, drafts)
+    print(f"\nqueued as pending_review: {ids}. Approve in the terminal (`liquidmexx queue`).")
+    return 0
+
+
 def cmd_backup(_: argparse.Namespace) -> int:
     conn = open_db()
     path = backup(conn, get_settings().data_dir / "backups", label="manual")
@@ -457,6 +481,11 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--as-of", help="ISO time (default now); reads only data known by then")
     ip.add_argument("--json", action="store_true")
     ip.set_defaults(func=cmd_intel)
+    cm = sub.add_parser("compose", help="draft posts from trending topics (preview; --save queues)")
+    cm.add_argument("--limit", type=int, default=3)
+    cm.add_argument("--save", action="store_true", help="store drafts in the approval queue")
+    cm.add_argument("--as-of", help="ISO time (default now)")
+    cm.set_defaults(func=cmd_compose)
     dp = sub.add_parser("dashboard", help="local read-only dashboard on 127.0.0.1")
     dp.add_argument("--port", type=int, default=8741)
     dp.set_defaults(func=cmd_dashboard)

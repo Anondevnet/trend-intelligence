@@ -5,6 +5,7 @@ Nothing here writes: the server opens the database read-only and with ``query_on
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from bisect import bisect_right
 from collections import defaultdict
@@ -448,3 +449,27 @@ def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
             "trends accelerating vs cooling (rule-based stages, descriptive)"),
     ]
     return Command(kpis, vel[:15], hourly, int(items["c"]))
+
+
+# ---- post creator: suggested and queued drafts (read-only) ------------------------------------
+@dataclass
+class DraftsView:
+    suggested: list[Any]            # publishing.composer.Composed, not saved anywhere
+    queued: list[dict[str, Any]]    # newest first
+    mode: str
+
+
+def drafts_view(conn: sqlite3.Connection, cfg: Config, as_of: str) -> DraftsView:
+    from liquidmexx.publishing import status_of
+    from liquidmexx.publishing.composer import basis_of, compose
+
+    suggested = compose(conn, cfg.publishing, command(conn, cfg, as_of).velocities, as_of,
+                        limit=5)
+    queued = []
+    for r in conn.execute("SELECT id, created_at, created_by, text, claim_status, sources_json,"
+                          " meta_json FROM post_drafts ORDER BY id DESC LIMIT 20"):
+        queued.append({"id": r["id"], "created_at": r["created_at"], "by": r["created_by"],
+                       "text": r["text"], "claim": r["claim_status"],
+                       "sources": len(json.loads(r["sources_json"])),
+                       "status": status_of(conn, int(r["id"])), "basis": basis_of(r["meta_json"])})
+    return DraftsView(suggested, queued, cfg.publishing.mode)

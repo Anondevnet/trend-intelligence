@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from liquidmexx.dashboard.data import Command, Overview, TrendRow
+from liquidmexx.dashboard.data import Command, DraftsView, Overview, TrendRow
 from liquidmexx.intel.reports import Report
 from liquidmexx.timeutil import parse_iso
 
@@ -60,6 +60,10 @@ border-radius:10px;padding:12px 14px}
 svg.chart{width:100%;height:auto}
 .stage{display:inline-block;padding:0 8px;border-radius:9px;font-size:12px;border:1px solid
 var(--line)}.stage.Accelerating{color:#86efac}.stage.Emerging{color:#60a5fa}
+body .card{border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;
+background:var(--card)}
+textarea{width:100%;font:inherit;color:var(--fg);background:var(--card);
+border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
 .stage.Cooling{color:#fdba74}.stage.Detection,.stage.Steady{color:var(--muted)}
 """
 
@@ -124,7 +128,7 @@ def page(title: str, body: str, as_of: str, *, refresh: int | None = None,
         f"<title>{esc(title)}</title><link rel=stylesheet href=/style.css></head>"
         f"<body{' class=cc' if dark else ''}><main>"
         f"<header><h1>{esc(title)}</h1><nav><a href=/>Command Center</a>"
-        "<a href=#emerging>Emerging Trends</a>"
+        "<a href=#emerging>Emerging Trends</a><a href=/drafts>Post Creator</a>"
         "<a href=/intel/crypto>Crypto report</a><a href=/intel/ai>AI report</a></nav>"
         f'<span class="meta">as of {local(as_of)} · read-only · local only</span></header>'
         f"{body}"
@@ -323,3 +327,51 @@ def report_page(rep: Report) -> str:
 def error_page(title: str, message: str) -> str:
     return page(title, f"<section><p>{esc(message)}</p></section>",
                 datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
+
+
+# ---- post creator ----------------------------------------------------------------------------
+def _basis_line(b: dict[str, Any]) -> str:
+    if not b:
+        return ""
+    bits = [f"style: {esc(b.get('style'))} (from the most-engaged recent posts on the topic)"]
+    vol, soc = b.get("volume"), b.get("social")
+    if vol:
+        bits.append(f"volume: {vol['n24']} mentions, {vol['sources']} sources, {esc(vol['stage'])}")
+    if soc:
+        bits.append(f"social: {soc['engagement']:,} engagement on {soc['posts']} posts")
+    top = [e["engagement"] for e in b.get("exemplars", [])]
+    if top:
+        bits.append("top exemplar engagement: " + ", ".join(str(x) for x in top))
+    return '<p class="note">' + " · ".join(bits) + "</p>"
+
+
+def _draft_card(title: str, text: str, note_html: str) -> str:
+    n = len(text)
+    return (f'<div class="card"><p><b>{esc(title)}</b> '
+            f'<span class="meta">{n}/280 chars</span></p>'
+            f'<textarea readonly rows=4 aria-label="post text">{esc(text)}</textarea>'
+            f"{note_html}</div>")
+
+
+def drafts_page(v: DraftsView, as_of: str) -> str:
+    sug = "".join(
+        _draft_card(c.name, c.text, _basis_line(c.basis)) for c in v.suggested
+    ) or '<p class="note">Nothing is rising or engaging enough right now to suggest a post.</p>'
+    queued = "".join(
+        _draft_card(f"#{d['id']} \u00b7 {d['status']}", d["text"],
+                    f'<p class="note">{esc(d["claim"])} · {d["sources"]} sources · by'
+                    f' {esc(d["by"])} · {local(d["created_at"])}</p>' + _basis_line(d["basis"]))
+        for d in v.queued) or '<p class="note">The queue is empty.</p>'
+    body = (
+        "<section><h2>Suggested posts (not saved)</h2>"
+        '<p class="note">Written from measured activity: our own mention counts and the likes,'
+        " reposts and replies on public Mastodon posts about the same topic. The opening style"
+        " follows what is getting engagement; no wording is copied. Click a box and press"
+        " Cmd+A, Cmd+C to copy, then post it yourself. No advice, links, @mentions or $tickers."
+        f"</p>{sug}"
+        '<p class="note">To save suggestions to the approval queue, run <code>uv run liquidmexx'
+        " compose --save</code> in the terminal.</p></section>"
+        f"<section><h2>Approval queue</h2><p>posting mode {pill(v.mode, v.mode == 'off')}</p>"
+        '<p class="note">Nothing posts automatically. Approving happens only in the terminal'
+        f" (<code>liquidmexx queue</code>).</p>{queued}</section>")
+    return page("Trend Intelligence \u00b7 Post Creator", body, as_of, dark=True)
