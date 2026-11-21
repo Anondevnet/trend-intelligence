@@ -111,13 +111,16 @@ def _facts(name: str, vol: dict[str, Any] | None, soc: dict[str, Any] | None) ->
     return parts
 
 
-def render_text(style: str, name: str, facts: Sequence[str]) -> str:
+LEADS = {"Accelerating": "is surging", "Emerging": "is picking up"}
+
+
+def render_text(style: str, name: str, facts: Sequence[str], lead: str = "is trending") -> str:
     body = "; ".join(facts)
     if style == "question":
         return f"What's driving {name}? {body[0].upper() + body[1:]}."
     if style == "number":
-        return f"{body[0].upper() + body[1:]}: {name}."
-    return f"{name}: {body}."
+        return f"{body[0].upper() + body[1:]} \u2014 that's {name} right now."
+    return f"{name} {lead}: {body}."
 
 
 def _trend_info(conn: sqlite3.Connection) -> dict[int, sqlite3.Row]:
@@ -164,9 +167,10 @@ def compose(conn: sqlite3.Connection, cfg: PublishingConfig, velocities: Sequenc
             weights[e.style] += max(e.engagement, 1)
         style = weights.most_common(1)[0][0] if weights else "statement"
         facts = _facts(t["name"], vol, soc)
-        text = render_text(style, t["name"], facts)
+        lead = LEADS.get(vol["stage"], "is trending") if vol else "is getting reactions"
+        text = render_text(style, t["name"], facts, lead)
         if len(text) > cfg.max_chars:  # drop the weaker clause rather than truncating mid-word
-            text = render_text(style, t["name"], facts[:1])
+            text = render_text(style, t["name"], facts[:1], lead)
         sources: list[dict[str, Any]] = [{"raw_item_id": int(p["id"])} for p in top[:2]]
         if not sources:
             row = conn.execute(

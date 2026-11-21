@@ -367,8 +367,18 @@ def _fold(summary: str, inner: str) -> str:
     return f'<details class="fold"><summary>{esc(summary)}</summary>{inner}</details>'
 
 
+def _ready_posts(ov: Overview) -> str:
+    if not ov.suggested:
+        return ('<section><h2>Post ready to copy</h2><p class="note">Nothing is rising or'
+                " engaging enough right now to suggest a post.</p></section>")
+    cards = "".join(_draft_card(c.name, c.text, "") for c in ov.suggested)
+    return ('<section><h2>Posts ready to copy</h2><p class="note">Click inside a box, press'
+            " Cmd+A then Cmd+C, and paste it into X yourself. Written from real numbers."
+            f' <a href=/drafts>More suggestions and why</a></p>{cards}</section>')
+
+
 def overview_page(ov: Overview) -> str:
-    body = (_glance(ov) + _command(ov.command)
+    body = (_glance(ov) + _ready_posts(ov) + _command(ov.command)
             + "<h2>Under the hood</h2>"
             '<p class="note">Technical detail. You do not need these to use the dashboard.</p>'
             + _fold("Is the data healthy? (collection)", _runs(ov))

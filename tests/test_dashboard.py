@@ -338,3 +338,10 @@ def test_social_pulse_without_posts_says_so() -> None:
     from liquidmexx.dashboard.data import Command
     from liquidmexx.dashboard.render import _pulse
     assert "No social posts stored yet" in _pulse(Command([], [], [0] * 24, 0, None))
+
+
+def test_overview_shows_copyable_posts(db: Path) -> None:
+    status, body = page(db, "/")
+    assert status == 200
+    assert "ready to copy" in body.lower()
+    assert "<textarea" in body or "Nothing is rising or engaging enough" in body

@@ -155,6 +155,7 @@ class Overview:
     llm_live_opt_in: bool
     runs: list[dict[str, Any]]
     counts: dict[str, int]
+    suggested: list[Any] = field(default_factory=list)  # composer.Composed, not saved
 
 
 def readiness(conn: sqlite3.Connection, cfg: Config) -> Readiness:
@@ -256,11 +257,14 @@ def overview(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Overview:
         " GROUP BY source_id, mode) ORDER BY source_id, mode")]
     counts = {t: int(conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
               for t in ("raw_items", "observations", "trends", "trend_mentions", "api_usage")}
-    return Overview(command(conn, cfg, as_of), as_of, data_watermark(conn, as_of),
+    cmd = command(conn, cfg, as_of)
+    from liquidmexx.publishing.composer import compose
+    suggested = compose(conn, cfg.publishing, cmd.velocities, as_of, limit=2)
+    return Overview(cmd, as_of, data_watermark(conn, as_of),
                     readiness(conn, cfg), run, trends,
                     float(cfg.intel["concentration_warning"]), posting(conn, cfg),
                     spend(conn, cfg, as_of), cfg.models.live_calls, cfg.live_llm_opt_in, runs,
-                    counts)
+                    counts, suggested)
 
 
 
