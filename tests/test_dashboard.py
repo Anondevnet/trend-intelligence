@@ -320,3 +320,21 @@ def test_help_page_explains_tiles_and_whats_off(db: Path) -> None:
     for word in ("The 8 tiles", "Topic status words", "Viral probability", "switched off"):
         assert word in body
     assert "<script" not in body.lower() and "<form" not in body.lower()
+
+
+def test_social_pulse_series_and_panel(tmp_path: Path) -> None:
+    from liquidmexx.dashboard.data import overview, social
+    from liquidmexx.dashboard.render import overview_page
+    conn = _mastodon_world(tmp_path / "s3.db", posts=6)
+    s = social(conn, T)
+    assert s is not None
+    assert sum(s.hourly_posts) == 6 and sum(s.hourly_engagement) == s.engagement_24h == 21
+    assert s.top_accounts[0] == ("a@m.s", 18) and s.top_posts[0]["engagement"] == 6
+    html = overview_page(overview(conn, load_config(), T))
+    assert "Social pulse" in html and "Reactions by hour posted" in html
+
+
+def test_social_pulse_without_posts_says_so() -> None:
+    from liquidmexx.dashboard.data import Command
+    from liquidmexx.dashboard.render import _pulse
+    assert "No social posts stored yet" in _pulse(Command([], [], [0] * 24, 0, None))

@@ -305,17 +305,23 @@ class Social:
     influential: int
     top_account: str | None
     top_engagement: int
+    hourly_posts: list[int] = field(default_factory=lambda: [0] * 24)    # posted per hour
+    hourly_engagement: list[int] = field(default_factory=lambda: [0] * 24)  # reactions on those
+    top_posts: list[dict[str, Any]] = field(default_factory=list)
+    top_accounts: list[tuple[str, int]] = field(default_factory=list)
 
 
 def social(conn: sqlite3.Connection, as_of: str) -> Social | None:
     """Engagement signals from stored Mastodon posts. None when no such posts are stored."""
     t24, t2, t1 = shift(as_of, 24), shift(as_of, 2), shift(as_of, 1)
     posts = conn.execute(
-        "SELECT external_id, author FROM raw_items WHERE source_id=? AND published_at>?"
-        " AND available_at<=?", (SOCIAL_SOURCE, t24, as_of)).fetchall()
+        "SELECT external_id, author, title, url, published_at FROM raw_items"
+        " WHERE source_id=? AND published_at>? AND available_at<=?",
+        (SOCIAL_SOURCE, t24, as_of)).fetchall()
     if not posts:
         return None
     author = {f"{SOCIAL_SOURCE}:{r['external_id']}": r["author"] for r in posts}
+    by_key = {f"{SOCIAL_SOURCE}:{r['external_id']}": r for r in posts}
     series: dict[str, dict[str, list[tuple[str, float]]]] = {}
     marks = ",".join("?" * len(ENGAGEMENT))
     for r in conn.execute(
@@ -338,11 +344,21 @@ def social(conn: sqlite3.Connection, as_of: str) -> Social | None:
 
     per_author: dict[str, float] = defaultdict(float)
     total_now = 0.0
+    hourly_posts, hourly_eng = [0] * 24, [0] * 24
+    end = parse_iso(as_of)
+    ranked: list[dict[str, Any]] = []
     gain_recent = gain_prev = 0.0
     counted = 0
     for key, who in author.items():
         now = at_time(key, as_of) or 0.0
         total_now += now
+        p = by_key[key]
+        age_h = int((end - parse_iso(p["published_at"])).total_seconds() // 3600)
+        if 0 <= age_h < 24:
+            hourly_posts[23 - age_h] += 1
+            hourly_eng[23 - age_h] += int(now)
+        ranked.append({"engagement": int(now), "author": who, "url": p["url"],
+                       "text": (p["title"] or "").strip()})
         if who:
             per_author[who] += now
         e1, e2 = at_time(key, t1), at_time(key, t2)
@@ -353,8 +369,12 @@ def social(conn: sqlite3.Connection, as_of: str) -> Social | None:
     accel = growth(int(gain_recent), int(gain_prev)) if counted >= ACCEL_MIN_POSTS else None
     big = {a: v for a, v in per_author.items() if v >= INFLUENCE_MIN}
     top = max(big, key=lambda a: (big[a], a)) if big else None
+    ranked.sort(key=lambda r: (-r["engagement"], r["url"] or ""))
+    accounts = sorted(((a, int(v)) for a, v in per_author.items() if v > 0),
+                      key=lambda x: (-x[1], x[0]))[:5]
     return Social(len(author), int(total_now), accel, counted, len(big), top,
-                  int(big[top]) if top else 0)
+                  int(big[top]) if top else 0, hourly_posts, hourly_eng,
+                  [r for r in ranked if r["engagement"] > 0][:5], accounts)
 
 
 def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:

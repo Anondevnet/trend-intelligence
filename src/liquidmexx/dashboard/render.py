@@ -56,6 +56,9 @@ border-radius:10px;padding:12px 14px}
 .kpi .l{color:var(--muted);font-size:12.5px}.kpi .v{font-size:30px;font-weight:700;margin:2px 0}
 .kpi.na .v{color:var(--muted)}.kpi .s{color:var(--muted);font-size:12px}
 .grid2{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.grid2>section{min-width:0;overflow-wrap:anywhere}
+.grid2 ul{padding-left:18px;margin:4px 0}
+.grid2 li{margin:6px 0}
 @media (max-width:800px){.grid2{grid-template-columns:1fr}}
 svg.chart{width:100%;height:auto}
 .stage{display:inline-block;padding:0 8px;border-radius:9px;font-size:12px;border:1px solid
@@ -266,6 +269,41 @@ def _chart(hourly: list[int]) -> str:
             ' text-anchor="end">now</text></svg>')
 
 
+def _hour_chart(values: list[int], posts: list[int]) -> str:
+    top = max(values) or 1
+    w, h = 24 * 20, 120
+    bars = "".join(
+        f'<rect x="{i * 20 + 2}" y="{h - int(v / top * (h - 10))}" width="16"'
+        f' height="{int(v / top * (h - 10))}" rx="2" fill="#a78bfa"><title>{v} reactions on'
+        f" {posts[i]} posts made {23 - i}h ago</title></rect>" for i, v in enumerate(values))
+    return (f'<svg class="chart" viewBox="0 0 {w} {h + 14}" role="img"'
+            ' aria-label="Reactions on Mastodon posts by the hour they were posted">' + bars
+            + f'<text x="2" y="{h + 12}" fill="#8b9bb4" font-size="10">24h ago</text>'
+            f'<text x="{w - 2}" y="{h + 12}" fill="#8b9bb4" font-size="10"'
+            ' text-anchor="end">now</text></svg>')
+
+
+def _pulse(c: Command) -> str:
+    s = c.social
+    if s is None:
+        return ('<section><h2>Social pulse</h2><p class="note">No social posts stored yet. The'
+                " free Mastodon collector fills this in; X is off.</p></section>")
+    posts = "".join(
+        f"<li>{link(p['url'], (p['text'][:90] or 'post'))} <span class=note>"
+        f"{esc(p['author'] or 'unknown')} \u00b7 {p['engagement']:,} reactions</span></li>"
+        for p in s.top_posts) or "<li class=note>No reactions yet.</li>"
+    accts = "".join(f"<li>{esc(a)} <span class=note>{v:,} reactions</span></li>"
+                    for a, v in s.top_accounts) or "<li class=note>None yet.</li>"
+    return ('<div class="grid2"><section><h2>Reactions by hour posted</h2>'
+            f"{_hour_chart(s.hourly_engagement, s.hourly_posts)}"
+            f"<p class=note>{s.engagement_24h:,} likes, reposts and replies on {s.posts_24h:,}"
+            " public Mastodon posts from the last 24h. Each bar is the posts made in one hour,"
+            " oldest left; older posts have had longer to collect reactions. Mastodon stands in"
+            " while X is off.</p></section>"
+            f"<section><h2>Social pulse</h2><h3>Most-reacted posts</h3><ul>{posts}</ul>"
+            f"<h3>Accounts getting reactions</h3><ul>{accts}</ul></section></div>")
+
+
 def _stage(stage: str) -> str:
     return (f'<span class="stage {esc(stage)}" title="{esc(STAGE_HELP.get(stage, ""))}">'
             f"{esc(STAGE_LABEL.get(stage, stage))}</span>")
@@ -321,7 +359,8 @@ def _command(c: Command) -> str:
             " explanation. <b>n/a</b> means the data is not collected, so we show nothing rather"
             " than invent a number. Status words are simple rules on mention growth, not"
             ' predictions. <a href=/help>Full guide</a></p></section></div>'
-            f'<section id=emerging><h2>Topics, rising first</h2>{tbl}</section>')
+            + _pulse(c)
+            + f'<section id=emerging><h2>Topics, rising first</h2>{tbl}</section>')
 
 
 def _fold(summary: str, inner: str) -> str:
