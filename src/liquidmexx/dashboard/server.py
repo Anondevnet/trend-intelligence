@@ -59,6 +59,8 @@ def render_path(path: str, conn: sqlite3.Connection, cfg: Config, as_of: str
         return 200, "text/css; charset=utf-8", render.CSS
     if route == "/":
         return 200, "text/html; charset=utf-8", render.overview_page(overview(conn, cfg, as_of))
+    if route == "/help":
+        return 200, "text/html; charset=utf-8", render.help_page(as_of)
     if route == "/drafts":
         return 200, "text/html; charset=utf-8", render.drafts_page(
             drafts_view(conn, cfg, as_of), as_of)

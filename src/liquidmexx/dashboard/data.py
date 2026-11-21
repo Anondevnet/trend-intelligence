@@ -114,6 +114,7 @@ class Kpi:
     value: str
     sub: str
     tone: str = "ok"
+    help: str = ""
 
 
 @dataclass
@@ -127,6 +128,7 @@ class Velocity:
     sources: int
     first_seen: str | None
     stage: str
+    name: str = ""
 
 
 @dataclass
@@ -135,6 +137,7 @@ class Command:
     velocities: list[Velocity]
     hourly: list[int]  # mentions per hour, oldest first, 24 entries ending at as_of
     items_24h: int
+    social: Social | None = None
 
 
 @dataclass
@@ -357,7 +360,7 @@ def social(conn: sqlite3.Connection, as_of: str) -> Social | None:
 def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
     b = {h: shift(as_of, h) for h in (1, 2, 6, 12, 24, 48)}
     rows = conn.execute(
-        "SELECT DISTINCT m.trend_id, m.raw_item_id, t.slug, m.source_id, m.available_at"
+        "SELECT DISTINCT m.trend_id, m.raw_item_id, t.slug, t.name, m.source_id, m.available_at"
         " FROM trend_mentions m JOIN trends t ON t.id=m.trend_id"
         " JOIN v_raw_items r ON r.id=m.raw_item_id"
         " WHERE m.available_at<=? AND m.available_at>? AND r.is_backfill=0"
@@ -367,7 +370,8 @@ def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
     end = parse_iso(as_of)
     for r in rows:
         d = per.setdefault(r["slug"], {"n1": 0, "p1": 0, "n6": 0, "p6": 0, "n24": 0, "p24": 0,
-                                       "src": set(), "first": r["available_at"]})
+                                       "src": set(), "first": r["available_at"],
+                                       "name": r["name"]})
         av = r["available_at"]
         d["first"] = min(d["first"], av)
         if av > b[24]:
@@ -399,7 +403,7 @@ def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
             emerging += 1
         vel.append(Velocity(slug, d["n24"], d["n1"], growth(d["n1"], d["p1"]),
                             growth(d["n6"], d["p6"]), growth(d["n24"], d["p24"]),
-                            len(d["src"]), d["first"], stage))
+                            len(d["src"]), d["first"], stage, d["name"]))
     vel.sort(key=lambda v: (-v.n24, v.slug))
     items = conn.execute(
         "SELECT COUNT(*) c, COUNT(DISTINCT source_id) s FROM v_raw_items WHERE available_at<=?"
@@ -413,42 +417,56 @@ def command(conn: sqlite3.Connection, cfg: Config, as_of: str) -> Command:
     soc = social(conn, as_of)
     rising = sum(1 for v in vel if v.stage == "Accelerating")
     cooling = sum(1 for v in vel if v.stage == "Cooling")
+    h_accel = ("Are people reacting faster or slower than an hour ago? Counts likes, reposts and"
+               " replies on public Mastodon posts (X is off).")
+    h_infl = ("Accounts whose recent posts earned real reactions. Mastodon only for now; X data"
+              " is not collected.")
     if soc is None:
         accel_kpi = Kpi("Engagement acceleration", "n/a",
-                        "not collected: needs social posts with engagement (X is off)", "na")
+                        "not collected: needs social posts with engagement (X is off)", "na",
+                        h_accel)
         infl_kpi = Kpi("Influential accounts", "n/a", "not collected: needs social account data",
-                       "na")
+                       "na", h_infl)
     else:
         if soc.accel is None:
             accel_kpi = Kpi("Engagement acceleration", "collecting",
-                            f"needs 2h of history on {ACCEL_MIN_POSTS}+ posts"
-                            f" (Mastodon, {soc.accel_posts} so far)", "na")
+                            f"needs 2 hours of history on {ACCEL_MIN_POSTS}+ posts"
+                            f" ({soc.accel_posts} so far)", "na", h_accel)
         else:
+            trend_word = "speeding up" if soc.accel > 0.05 else (
+                "slowing down" if soc.accel < -0.05 else "about the same")
             accel_kpi = Kpi("Engagement acceleration", f"{soc.accel:+.0%}",
-                            "likes+reposts+replies gained: last hour vs the hour before"
-                            f" (Mastodon, {soc.accel_posts} posts)")
+                            f"Reactions are {trend_word}: this hour vs the hour before"
+                            f" ({soc.accel_posts} Mastodon posts)", "ok", h_accel)
         infl_kpi = Kpi("Influential accounts", str(soc.influential),
-                       f"accounts with {INFLUENCE_MIN}+ engagement in 24h (Mastodon)"
-                       + (f" · top: {soc.top_account} ({soc.top_engagement})"
-                          if soc.top_account else ""))
+                       f"accounts whose posts earned {INFLUENCE_MIN}+ reactions in 24h"
+                       + (f". Top: {soc.top_account} ({soc.top_engagement})"
+                          if soc.top_account else ""), "ok", h_infl)
     kpis = [
         Kpi("Items monitored (24h)", f"{items['c']:,}",
-            f"{items['s']} sources. Social: Mastodon only (X is off)"),
-        Kpi("Emerging trends", str(emerging), "rule-based: growing in the last 24h and 6h"),
+            f"posts, repos, articles and listings from {items['s']} sources. Social posts come"
+            " from Mastodon only (X is off)", "ok",
+            "Everything the collectors picked up in the last 24 hours."),
+        Kpi("Emerging trends", str(emerging), "topics growing over both the last 24h and 6h",
+            "ok", "Topics whose mentions are going up. Simple rules, not a forecast."),
         Kpi("Trend velocity", "new" if g is None else f"{g:+.0%}",
-            f"mentions in the last hour: {n1_all} vs {p1_all} the hour before"),
+            f"mentions this hour: {n1_all} (vs {p1_all} the hour before)", "ok",
+            "How fast overall mentions are changing compared with the hour before."),
         accel_kpi,
         infl_kpi,
         Kpi("Viral probability", "n/a",
-            "no validated predictor yet: the scorer has not beaten plain volume", "na"),
+            "no validated predictor yet: our score has not beaten plain mention volume", "na",
+            "We will not show a made-up number. This appears only once a method proves itself."),
         Kpi("Anomaly alerts", str(spikes),
-            f"volume spikes (last hour at least {SPIKE_FACTOR:g}x the 23h average, min"
-            f" {SPIKE_MIN_1H}) · {flagged} single-source flags",
-            "warn" if spikes or flagged else "ok"),
-        Kpi("Narrative shifts", f"{rising}↑ {cooling}↓",
-            "trends accelerating vs cooling (rule-based stages, descriptive)"),
+            f"sudden spikes: a topic's last hour is {SPIKE_FACTOR:g}x its usual (min"
+            f" {SPIKE_MIN_1H}). {flagged} topics get most of their buzz from one source",
+            "warn" if spikes or flagged else "ok",
+            "Spikes are unusual jumps. Single-source flags mean the buzz may not be broad."),
+        Kpi("Narrative shifts", f"{rising}\u2191 {cooling}\u2193",
+            "topics surging vs fading (simple rules)", "ok",
+            "Up arrow: topics surging. Down arrow: topics fading. Descriptive only."),
     ]
-    return Command(kpis, vel[:15], hourly, int(items["c"]))
+    return Command(kpis, vel[:15], hourly, int(items["c"]), soc)
 
 
 # ---- post creator: suggested and queued drafts (read-only) ------------------------------------

@@ -65,6 +65,16 @@ background:var(--card)}
 textarea{width:100%;font:inherit;color:var(--fg);background:var(--card);
 border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
 .stage.Cooling{color:#fdba74}.stage.Detection,.stage.Steady{color:var(--muted)}
+.glance{border-left:4px solid var(--accent)}.glance p{margin:4px 0;font-size:15px}
+.btn{display:inline-block;margin:6px 8px 0 0;padding:7px 14px;border-radius:8px;
+border:1px solid var(--accent);color:var(--accent);text-decoration:none;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--bg)}
+details.fold{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0}
+details.fold>summary{cursor:pointer;padding:10px 14px;font-weight:600}
+details.fold>section{border:0;margin:0;border-top:1px solid var(--line);border-radius:0}
+.steps{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
+.steps div{flex:1 1 200px;border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+dt{font-weight:600;margin-top:10px}dd{margin:2px 0 0}
 """
 
 
@@ -127,9 +137,10 @@ def page(title: str, body: str, as_of: str, *, refresh: int | None = None,
         '<meta name=referrer content="no-referrer">'
         f"<title>{esc(title)}</title><link rel=stylesheet href=/style.css></head>"
         f"<body{' class=cc' if dark else ''}><main>"
-        f"<header><h1>{esc(title)}</h1><nav><a href=/>Command Center</a>"
-        "<a href=#emerging>Emerging Trends</a><a href=/drafts>Post Creator</a>"
-        "<a href=/intel/crypto>Crypto report</a><a href=/intel/ai>AI report</a></nav>"
+        f"<header><h1>{esc(title)}</h1><nav><a href=/>Overview</a>"
+        "<a href=/#emerging>Topics</a><a href=/drafts>Post Creator</a>"
+        "<a href=/intel/crypto>Crypto report</a><a href=/intel/ai>AI report</a>"
+        "<a href=/help>Help</a></nav>"
         f'<span class="meta">as of {local(as_of)} · read-only · local only</span></header>'
         f"{body}"
         '<p class="note">Every number on this page is read from data/liquidmexx.db when the page'
@@ -229,6 +240,18 @@ def _fmt_growth(g: float | None) -> str:
     return "new" if g is None else f"{g:+.0%}"
 
 
+STAGE_LABEL = {"Detection": "Just spotted", "Emerging": "Rising", "Accelerating": "Surging",
+               "Steady": "Holding steady", "Cooling": "Fading"}
+STAGE_HELP = {
+    "Detection": "Very few mentions so far (fewer than 3 in 24h).",
+    "Emerging": "Mentions are growing over both the last 24h and 6h.",
+    "Accelerating": "Mentions have at least doubled over both the last 24h and 6h.",
+    "Steady": "Mentions are about flat.",
+    "Cooling": "Mentions dropped by 30%+ over the last 6h.",
+}
+STAGE_ORDER = {"Accelerating": 0, "Emerging": 1, "Detection": 2, "Steady": 3, "Cooling": 4}
+
+
 def _chart(hourly: list[int]) -> str:
     top = max(hourly) or 1
     w, h = 24 * 20, 140
@@ -243,31 +266,77 @@ def _chart(hourly: list[int]) -> str:
             ' text-anchor="end">now</text></svg>')
 
 
+def _stage(stage: str) -> str:
+    return (f'<span class="stage {esc(stage)}" title="{esc(STAGE_HELP.get(stage, ""))}">'
+            f"{esc(STAGE_LABEL.get(stage, stage))}</span>")
+
+
+def _glance(ov: Overview) -> str:
+    c = ov.command
+    vel = sorted(c.velocities, key=lambda v: (STAGE_ORDER.get(v.stage, 9), -v.n24))
+    risers = [v for v in vel if v.stage in ("Accelerating", "Emerging")]
+    if risers:
+        v = risers[0]
+        hot = (f"<b>{esc(v.name or v.slug)}</b> is {esc(STAGE_LABEL[v.stage].lower())}:"
+               f" {v.n24} mentions in the last 24h ({esc(_fmt_growth(v.g24h))} vs the day"
+               " before).")
+    else:
+        hot = "Nothing is rising right now."
+    fading = sum(1 for v in vel if v.stage == "Cooling")
+    steady = sum(1 for v in vel if v.stage in ("Steady", "Detection"))
+    lines = [f"<p>{hot} {steady} topics are holding steady or just starting; {fading} are"
+             " fading.</p>"]
+    if c.social is not None:
+        lines.append(f"<p>Social check (Mastodon): {c.social.engagement_24h:,} likes, reposts and"
+                     f" replies on {c.social.posts_24h:,} posts in the last 24h.</p>")
+    live = [r for r in ov.runs if r["mode"] == "live"]
+    bad = [r for r in live if r["status"] != "ok"]
+    spent = sum(sp.spent_today for sp in ov.spend)
+    issues = ("; needs a look: " + ", ".join(
+        f"{esc(r['source_id'])} ({esc((r['error'] or r['status'])[:48])})" for r in bad)
+        if bad else "")
+    lines.append(f'<p class="note">Health: {len(live) - len(bad)} of {len(live)} collectors OK'
+                 f"{issues} \u00b7 spent today ${spent:,.2f} \u00b7 posting is"
+                 f" {esc(ov.posting.mode.upper())} (nothing can post by itself).</p>")
+    return ('<section class="glance"><h2>Right now</h2>' + "".join(lines)
+            + '<a class="btn primary" href=/drafts>Write a post about it \u2192</a>'
+            '<a class="btn" href=/help>How to read this page</a></section>')
+
+
 def _command(c: Command) -> str:
-    kpis = "".join(f'<div class="kpi {esc(k.tone)}"><div class="l">{esc(k.label)}</div>'
+    kpis = "".join(f'<div class="kpi {esc(k.tone)}" title="{esc(k.help)}">'
+                   f'<div class="l">{esc(k.label)}</div>'
                    f'<div class="v">{esc(k.value)}</div><div class="s">{esc(k.sub)}</div></div>'
                    for k in c.kpis)
-    rows = [(esc(v.slug), f'<span class="stage {esc(v.stage)}">{esc(v.stage)}</span>',
-             str(v.n24), _fmt_growth(v.g1h), _fmt_growth(v.g6h), _fmt_growth(v.g24h),
-             str(v.sources), local(v.first_seen)) for v in c.velocities]
-    tbl = table(["trend", "stage", "mentions 24h", "growth 1h", "growth 6h", "growth 24h",
-                 "sources", "first seen"], rows, {2, 3, 4, 5, 6}) if rows else \
+    vel = sorted(c.velocities, key=lambda v: (STAGE_ORDER.get(v.stage, 9), -v.n24, v.slug))
+    rows = [(esc(v.name or v.slug), _stage(v.stage), str(v.n24), _fmt_growth(v.g24h),
+             _fmt_growth(v.g6h), str(v.sources)) for v in vel]
+    tbl = table(["topic", "status", "mentions (24h)", "vs yesterday", "last 6h", "sources"],
+                rows, {2, 3, 4, 5}) if rows else \
         '<p class="note">No linked mentions in the last 48h yet.</p>'
     return (f'<div class="kpis">{kpis}</div><div class="grid2"><section><h2>Mentions per hour'
-            f"</h2>{_chart(c.hourly)}<p class=note>Linked mentions from collected sources (no X"
-            " data). Refreshes every 60s from stored data; collection runs every 15 min.</p>"
-            '</section><section><h2>How to read this</h2><p class="note">Stages are simple'
-            " rules on mention growth (Detection, Emerging, Accelerating, Steady, Cooling). They"
-            " are descriptive, not validated predictions. Growth is shown for 1h, 6h and 24h"
-            " because collection runs every 15 minutes, so 5-minute growth is not measurable."
-            ' &quot;new&quot; means nothing to compare with yet. n/a tiles need data that is'
-            " not collected.</p></section></div>"
-            f'<section id=emerging><h2>Emerging trends</h2>{tbl}</section>')
+            f"</h2>{_chart(c.hourly)}<p class=note>Each bar is one hour, oldest on the left."
+            " Updates every minute; new data arrives every 15 minutes.</p>"
+            '</section><section><h2>Quick guide</h2><p class="note">Hover a tile for a plain'
+            " explanation. <b>n/a</b> means the data is not collected, so we show nothing rather"
+            " than invent a number. Status words are simple rules on mention growth, not"
+            ' predictions. <a href=/help>Full guide</a></p></section></div>'
+            f'<section id=emerging><h2>Topics, rising first</h2>{tbl}</section>')
+
+
+def _fold(summary: str, inner: str) -> str:
+    return f'<details class="fold"><summary>{esc(summary)}</summary>{inner}</details>'
 
 
 def overview_page(ov: Overview) -> str:
-    body = (_command(ov.command) + "<h2>System</h2>" + _readiness(ov) + _trends(ov)
-            + _posting(ov) + _spend(ov) + _runs(ov))
+    body = (_glance(ov) + _command(ov.command)
+            + "<h2>Under the hood</h2>"
+            '<p class="note">Technical detail. You do not need these to use the dashboard.</p>'
+            + _fold("Is the data healthy? (collection)", _runs(ov))
+            + _fold("Detailed trend scores", _trends(ov))
+            + _fold("Posting safety switches and queue", _posting(ov))
+            + _fold("Spend vs daily limits", _spend(ov))
+            + _fold("When can we test the detectors? (Stage 6)", _readiness(ov)))
     return page("Trend Intelligence \u00b7 Command Center", body, ov.as_of, refresh=60,
                 dark=True)
 
@@ -333,16 +402,17 @@ def error_page(title: str, message: str) -> str:
 def _basis_line(b: dict[str, Any]) -> str:
     if not b:
         return ""
-    bits = [f"style: {esc(b.get('style'))} (from the most-engaged recent posts on the topic)"]
+    bits = []
     vol, soc = b.get("volume"), b.get("social")
     if vol:
-        bits.append(f"volume: {vol['n24']} mentions, {vol['sources']} sources, {esc(vol['stage'])}")
+        bits.append(f"{vol['n24']} mentions across {vol['sources']} sources in 24h")
     if soc:
-        bits.append(f"social: {soc['engagement']:,} engagement on {soc['posts']} posts")
+        bits.append(f"{soc['engagement']:,} reactions on {soc['posts']} Mastodon posts")
     top = [e["engagement"] for e in b.get("exemplars", [])]
     if top:
-        bits.append("top exemplar engagement: " + ", ".join(str(x) for x in top))
-    return '<p class="note">' + " · ".join(bits) + "</p>"
+        bits.append(f"opening style ({esc(b.get('style'))}) copied from the posts that got the"
+                    f" most reactions (best: {max(top)})")
+    return '<p class="note">Why this topic: ' + "; ".join(bits) + ".</p>" if bits else ""
 
 
 def _draft_card(title: str, text: str, note_html: str) -> str:
@@ -363,15 +433,57 @@ def drafts_page(v: DraftsView, as_of: str) -> str:
                     f' {esc(d["by"])} · {local(d["created_at"])}</p>' + _basis_line(d["basis"]))
         for d in v.queued) or '<p class="note">The queue is empty.</p>'
     body = (
+        '<div class="steps"><div><b>1. Pick</b><br>a suggestion below</div>'
+        "<div><b>2. Copy</b><br>click inside the box, then Cmd+A and Cmd+C</div>"
+        "<div><b>3. Post</b><br>paste it into X yourself</div></div>"
         "<section><h2>Suggested posts (not saved)</h2>"
-        '<p class="note">Written from measured activity: our own mention counts and the likes,'
-        " reposts and replies on public Mastodon posts about the same topic. The opening style"
-        " follows what is getting engagement; no wording is copied. Click a box and press"
-        " Cmd+A, Cmd+C to copy, then post it yourself. No advice, links, @mentions or $tickers."
-        f"</p>{sug}"
+        '<p class="note">Written from real numbers: our own mention counts and reactions on'
+        " public Mastodon posts about the same topic. The opening style follows what is getting"
+        " engagement; no wording is copied. Posts never contain advice, links, @mentions or"
+        f" $tickers.</p>{sug}"
         '<p class="note">To save suggestions to the approval queue, run <code>uv run liquidmexx'
         " compose --save</code> in the terminal.</p></section>"
         f"<section><h2>Approval queue</h2><p>posting mode {pill(v.mode, v.mode == 'off')}</p>"
         '<p class="note">Nothing posts automatically. Approving happens only in the terminal'
         f" (<code>liquidmexx queue</code>).</p>{queued}</section>")
     return page("Trend Intelligence \u00b7 Post Creator", body, as_of, dark=True)
+
+
+# ---- help ------------------------------------------------------------------------------------
+def help_page(as_of: str) -> str:
+    stages = "".join(f"<dt>{_stage(k)}</dt><dd>{esc(v)}</dd>" for k, v in STAGE_HELP.items())
+    body = (
+        "<section><h2>What this is</h2><p>A local dashboard that watches AI and crypto sources"
+        " (GitHub, Hacker News, Hugging Face, arXiv, news feeds, Polymarket, DeFi data and"
+        " Mastodon), finds topics that are heating up, and helps you write posts about them."
+        " It only reads stored data. It cannot post anything.</p></section>"
+        '<div class="steps"><div><b>1. Look</b><br>Overview: what is rising, and the 8 tiles'
+        "</div><div><b>2. Write</b><br>Post Creator: copy a ready post</div>"
+        "<div><b>3. Post</b><br>paste it into X yourself</div></div>"
+        "<section><h2>The 8 tiles</h2><dl>"
+        "<dt>Items monitored</dt><dd>How much new material the collectors found in 24 hours."
+        "</dd><dt>Emerging trends</dt><dd>Topics whose mentions are growing.</dd>"
+        "<dt>Trend velocity</dt><dd>Total mentions this hour compared with the hour before."
+        "</dd><dt>Engagement acceleration</dt><dd>Whether likes, reposts and replies are"
+        " arriving faster or slower than an hour ago (Mastodon posts for now).</dd>"
+        "<dt>Influential accounts</dt><dd>Accounts whose posts got real reactions.</dd>"
+        "<dt>Viral probability</dt><dd>Always n/a for now. We have no method that has proven"
+        " itself, and we will not show a made-up number.</dd>"
+        "<dt>Anomaly alerts</dt><dd>Sudden spikes, and topics where one source supplies most of"
+        " the buzz.</dd><dt>Narrative shifts</dt><dd>How many topics are surging (up arrow) and"
+        " fading (down arrow).</dd></dl></section>"
+        f"<section><h2>Topic status words</h2><dl>{stages}</dl>"
+        '<p class="note">These are simple rules on mention counts. They describe what already'
+        " happened. They are not forecasts.</p></section>"
+        "<section><h2>What is switched off, and why</h2><ul>"
+        "<li><b>X data:</b> X charges per post read and the account has no credit. Mastodon"
+        " stands in for engagement signals.</li>"
+        "<li><b>Posting:</b> off. Posts are drafted for you to copy; approving happens only in"
+        " the terminal.</li>"
+        "<li><b>Claude-written posts:</b> off. Drafts are written by fixed templates from real"
+        " numbers.</li></ul></section>"
+        "<section><h2>Handy terminal commands</h2><p><code>uv run liquidmexx compose</code>"
+        " preview post drafts<br><code>uv run liquidmexx compose --save</code> put them in the"
+        " approval queue<br><code>uv run liquidmexx queue list</code> see the queue<br>"
+        "<code>uv run liquidmexx status</code> counts, last runs and spend</p></section>")
+    return page("Trend Intelligence \u00b7 Help", body, as_of, dark=True)

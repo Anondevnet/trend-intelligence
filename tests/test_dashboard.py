@@ -302,3 +302,21 @@ def test_acceleration_waits_for_enough_history(tmp_path: Path) -> None:
     kpis = {k.label: k for k in command(conn, load_config(), T).kpis}
     assert kpis["Engagement acceleration"].value == "collecting"
     assert kpis["Engagement acceleration"].tone == "na"
+
+
+def test_overview_explains_itself_in_plain_language(db: Path) -> None:
+    status, body = page(db, "/")
+    assert status == 200
+    assert "Right now" in body and "Write a post about it" in body
+    assert "<details" in body and "Under the hood" in body  # technical tables are folded away
+    assert 'title="' in body  # tiles carry a plain-English hover explanation
+    assert "Holding steady" in body or "Rising" in body or "Just spotted" in body
+    assert "<script" not in body.lower().replace("&lt;script", "")
+
+
+def test_help_page_explains_tiles_and_whats_off(db: Path) -> None:
+    status, body = page(db, "/help")
+    assert status == 200
+    for word in ("The 8 tiles", "Topic status words", "Viral probability", "switched off"):
+        assert word in body
+    assert "<script" not in body.lower() and "<form" not in body.lower()
