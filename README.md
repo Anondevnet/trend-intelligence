@@ -1,5 +1,9 @@
 # Liquidmexx Trend Intelligence
 
+[![CI](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml)
+
+![Demo](docs/demo.gif)
+
 A local-first crypto × AI trend intelligence platform for the [@Liquidmexx](https://x.com/Liquidmexx) account.
 It collects signals from public sources and stores them in a history that is never edited.
 It then scores which topics are *accelerating* rather than merely popular, and backtests those predictions honestly.
@@ -81,6 +85,17 @@ uv run python scripts/secret_scan.py      # run before every commit
 ```
 
 Tests use mocked HTTP (`respx`) and a mock Claude transport, never touch real credentials, never call Anthropic or X, and never post.
+
+
+## Results
+
+Recorded in [GitHub Actions](https://github.com/Anondevnet/trend-intelligence/actions/runs/45046516792) on 22 November 2026, `ubuntu-latest`, Python 3.11, HTTP mocked with `respx`:
+
+| Metric | Value |
+|---|---|
+| Tests passed | 231 |
+
+The job completed successfully. The runner logged the 231-test progress bar through 100%.
 
 ## Documentation
 
