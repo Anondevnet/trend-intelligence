@@ -32,8 +32,9 @@ Later stages draft original, sourced content for review and posting.
 
 ## Install
 
+From the repository root:
+
 ```bash
-cd ~/trend-intelligence
 uv sync                                   # creates .venv with pinned deps
 cp config/env.template .env && chmod 600 .env   # then fill in what you have (all optional)
 uv run liquidmexx migrate                 # creates data/liquidmexx.db
