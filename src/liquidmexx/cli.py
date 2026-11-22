@@ -43,7 +43,9 @@ from liquidmexx.publishing import (
     release_kill_switch,
     status_of,
 )
+from liquidmexx.publishing.publisher import Transport
 from liquidmexx.publishing.queue import events as draft_events
+from liquidmexx.publishing.x_transport import XTransport, credentials_from
 from liquidmexx.redaction import setup_logging
 from liquidmexx.scoring import SCORER_VERSION, Scorer, verify_run
 from liquidmexx.settings import get_settings
@@ -413,8 +415,11 @@ def cmd_queue(args: argparse.Namespace) -> int:
             reject(conn, draft.id, _human(), args.reason)
             print(f"draft {draft.id} rejected")
         elif args.action == "publish":
-            # Only the dry-run transport exists. In mode "off" or "live" this is blocked.
-            pub = Publisher(conn, cfg, DryRunTransport(), data_dir=get_settings().data_dir,
+            # The live X transport is only built in mode "live" with all four OAuth values;
+            # the publisher still refuses unless every other switch is on.
+            creds = credentials_from(get_settings()) if cfg.mode == "live" else None
+            transport: Transport = XTransport(creds) if creds else DryRunTransport()
+            pub = Publisher(conn, cfg, transport, data_dir=get_settings().data_dir,
                             live_opt_in=get_settings().live_posting_opt_in,
                             guard=BudgetGuard(conn, load_budgets()))
             out = pub.publish(draft.id, _human())
@@ -438,7 +443,8 @@ def cmd_posting(args: argparse.Namespace) -> int:
         print("kill-switch file removed" if released else "kill-switch file was not present")
     killed = "ENGAGED" if kill_switch_engaged(cfg, data_dir) else "off"
     print(f"mode={cfg.mode}  kill_switch={killed}"
-          f"  live_opt_in={get_settings().live_posting_opt_in}  live_transport=none installed"
+          f"  live_opt_in={get_settings().live_posting_opt_in}"
+          f"  x_write_keys={'present' if credentials_from(get_settings()) else 'missing'}"
           f"  max_posts_per_day={cfg.max_posts_per_day}")
     return 0
 

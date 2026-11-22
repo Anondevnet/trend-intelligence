@@ -215,7 +215,7 @@ with no JavaScript.
 | 7 | Crypto and AI intelligence | Done: `liquidmexx intel crypto` and `intel ai`, descriptive reports with labelled evidence |
 | 8 | Claude research and content | Offline client done (routing, caps, validation, caching, batches); real calls off, see [`costs-and-pricing.md`](costs-and-pricing.md) |
 | 9 | Dashboard | Done: `liquidmexx dashboard`, local (127.0.0.1) and read-only |
-| 10 | X publishing | Safeguards done (off, draft-only, approval-gated); no live X transport exists, see [`publishing-safety.md`](publishing-safety.md) |
+| 10 | X publishing | Safeguards done (off, draft-only, approval-gated); live X transport behind every switch (step 1: approved drafts only), see [`publishing-safety.md`](publishing-safety.md) |
 | 11 | Engagement analytics | Planned |
 | 12 | Learning engine | Planned |
 | 13 | Security and operations hardening | Planned |

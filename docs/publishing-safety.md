@@ -1,8 +1,9 @@
 # Publishing safety (Stage 10 groundwork)
 
-Posting is **off** and draft-only. The codebase contains **no live X client**; a test fails if
-any module references the X API hosts or an X client library. A live transport will be added only
-in Stage 10 proper, with your explicit approval.
+Posting is **off** and draft-only by default. The only code that can write to X is
+`publishing/x_transport.py` (one signed `POST /2/tweets`, no retry, nothing else); a test fails if
+any other module references the X API host for writes or an X client library. It is used only for
+drafts you approved, and only when every switch below is on.
 
 ## What has to be true for a post to go out
 
@@ -15,7 +16,8 @@ written to the audit log with its reason.
 3. **Live posting needs three things:**
    - `mode: "live"` in the config;
    - `LIQUIDMEXX_LIVE_POSTING=enabled` in `.env` (only that exact value counts);
-   - a live transport, which does not exist yet.
+   - all four X OAuth values (`X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`,
+     `X_ACCESS_TOKEN_SECRET`) so the live X transport can be built.
 
    `dry_run` mode refuses a live transport.
 4. **The draft is `approved`.** The approval must:

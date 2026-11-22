@@ -220,7 +220,7 @@ def _spend(ov: Overview) -> str:
                          f"{spent / cap:.0%}" if cap else DASH, ""))
     llm = (f"Claude calls: live_calls {pill(str(ov.llm_live_calls).lower(), not ov.llm_live_calls)}"
            f" opt-in {pill('set' if ov.llm_live_opt_in else 'not set', not ov.llm_live_opt_in)}"
-           " · X: no live transport")
+           " · X posting: off unless mode is live")
     return ("<section><h2>Spend today (UTC day) vs daily caps</h2>"
             f"<p>{llm}</p>"
             + table(["provider", "today", "cap", "used", "lifetime"], rows, {1, 2, 3, 4})

@@ -1,6 +1,6 @@
 """Stage 10 groundwork: approval queue, quality gate, kill switch and audit log.
 
-Posting is off by default and there is no live X transport in the codebase.
+Posting is off by default. The only X write path is x_transport.py, behind every switch.
 """
 
 from liquidmexx.publishing.gate import GateResult, run_gate

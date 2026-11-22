@@ -10,7 +10,7 @@ Later stages draft original, sourced content for review and posting.
 > safeguards: an approval queue, quality gate, kill switch and audit log, all off and draft-only,
 > and the Stage 8 Claude client (routing, caps, validation with one Sonnet retry, caching, batches),
 > with real API calls off.
-> There is no live X client in the code. Nothing posts to X. See [`docs/publishing-safety.md`](docs/publishing-safety.md).
+> Nothing posts to X unless posting mode is `live`, the opt-in env value and X write keys are set, and you approved the draft. See [`docs/publishing-safety.md`](docs/publishing-safety.md).
 
 ## Principles
 

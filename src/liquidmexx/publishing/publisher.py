@@ -1,8 +1,8 @@
 """The only path from an approved draft to a transport. Fails closed at every step.
 
-There is deliberately no live X transport in this codebase. ``DryRunTransport`` never
-touches the network. A live transport will be added in Stage 10 proper, only with
-explicit approval, and even then ``publish`` refuses unless every switch is on.
+``DryRunTransport`` never touches the network. The live ``XTransport`` (x_transport.py) is only
+built by the CLI in mode "live" with all four OAuth values, and even then ``publish`` refuses
+unless every switch is on.
 """
 
 from __future__ import annotations

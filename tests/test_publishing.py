@@ -1,6 +1,6 @@
 """Stage 10 groundwork: nothing can be posted without a standing human approval.
 
-All tests are offline. "Live" tests use an in-memory fake transport; no X client exists.
+All tests are offline. "Live" tests use an in-memory fake transport or an httpx MockTransport.
 """
 
 from __future__ import annotations
@@ -124,20 +124,28 @@ def test_live_opt_in_needs_the_exact_value(monkeypatch: pytest.MonkeyPatch) -> N
         assert Settings(_env_file=None).live_posting_opt_in is expected  # type: ignore[call-arg]
 
 
-def test_no_live_x_posting_client_exists_in_the_codebase() -> None:
-    """Posting stays impossible. The one X module (sources/x.py) is a read-only search."""
+def test_only_one_module_can_write_to_x() -> None:
+    """Reads live in sources/x.py (search only); the one write path is publishing/x_transport."""
     src_dir = PROJECT_ROOT / "src" / "liquidmexx"
+    allowed = {("sources", "x.py"), ("publishing", "x_transport.py")}
     for path in src_dir.rglob("*.py"):
         text = path.read_text(encoding="utf-8").lower()
         for needle in ("api.twitter.com", "upload.twitter.com", "tweepy"):
             assert needle not in text, f"{path} references {needle}"
-        if path.name != "x.py" or path.parent.name != "sources":
+        if (path.parent.name, path.name) not in allowed:
             assert "api.x.com" not in text, f"{path} references the X API"
+            users = {"cli.py", "publisher.py", "__init__.py"}  # cli builds it; others only name it
+            assert "x_transport" not in text or path.name in users, path
     x = (src_dir / "sources" / "x.py").read_text(encoding="utf-8").lower()
     assert x.count("api.x.com") == 1 and "/2/tweets/search/recent" in x
     for forbidden in ('request("post"', 'method="post"', ".post(", '/2/tweets"', "/2/users",
                       "oauth1", "access_token_secret", "/likes", "/retweets", "/following"):
         assert forbidden not in x, f"x.py must stay read-only: found {forbidden}"
+    w = (src_dir / "publishing" / "x_transport.py").read_text(encoding="utf-8").lower()
+    assert w.count("api.x.com") == 1 and w.count(".post(") == 1
+    for forbidden in ("/2/users", "/likes", "/retweets", "/following", "/media", ".delete(",
+                      ".put(", "for attempt", "while true", "max_retries"):
+        assert forbidden not in w, f"x_transport.py must only create one post: {forbidden}"
 
 
 # ---------------------------------------------------- no post without approval
