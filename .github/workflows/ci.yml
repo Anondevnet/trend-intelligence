@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        # Runtime deps come from pyproject.toml (this repo has no
+        # requirements.txt). Dev extras are a PEP 735 dependency group,
+        # so pytest/respx are installed explicitly.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install "pytest>=8" "respx>=0.21"
+      - name: Unit tests (offline, HTTP mocked)
+        run: python -m pytest -q --tb=line
