@@ -1,8 +1,28 @@
 # Liquidmexx Trend Intelligence
 
 [![CI](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+A local-first pipeline that collects crypto and AI signals into an append-only history, scores which topics are accelerating, and backtests those calls point-in-time so the scores can't see the future, with LLM drafting and posting kept behind approval gates that are off by default.
 
 ![Demo](docs/demo.gif)
+
+## Quickstart
+
+Uses [uv](https://docs.astral.sh/uv/) and Python 3.11. Tests mock all HTTP and the Claude client, so no keys are needed.
+
+```bash
+git clone https://github.com/Anondevnet/trend-intelligence && cd trend-intelligence
+uv sync                          # .venv with pinned deps, including the dev group
+uv run pytest                    # 231 offline tests
+uv run liquidmexx migrate        # create the local SQLite store in data/
+uv run liquidmexx score          # deterministic trend scores from stored history (no network)
+```
+
+Sources, collection, and scheduling are in [Install](#install) and [Operate](#operate).
+
+## Overview
 
 A local-first crypto × AI trend intelligence platform for the [@Liquidmexx](https://x.com/Liquidmexx) account.
 It collects signals from public sources and stores them in a history that is never edited.
