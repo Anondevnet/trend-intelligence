@@ -12,9 +12,14 @@ from pathlib import Path
 import httpx
 import pytest
 
-from liquidmexx.publishing.x_transport import ENDPOINT, XTransport, credentials_from, oauth_header
-from liquidmexx.settings import Settings
 from tests.test_publishing import NOW, approved, live_ready, publisher, src  # noqa: F401
+from trend_intelligence.publishing.x_transport import (
+    ENDPOINT,
+    XTransport,
+    credentials_from,
+    oauth_header,
+)
+from trend_intelligence.settings import Settings
 
 CREDS = {"api_key": "ck", "api_secret": "cs", "access_token": "at", "access_token_secret": "ats"}
 
@@ -75,7 +80,7 @@ def test_errors_raise_without_retrying_and_without_secrets(status: int, hint: st
 
 def test_publisher_posts_an_approved_draft_through_the_x_transport(
         conn: sqlite3.Connection, src: int, tmp_path: Path) -> None:  # noqa: F811
-    from liquidmexx.publishing import status_of
+    from trend_intelligence.publishing import status_of
     bodies: list[bytes] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -93,7 +98,7 @@ def test_publisher_posts_an_approved_draft_through_the_x_transport(
 
 def test_a_failed_send_is_recorded_and_not_retried(
         conn: sqlite3.Connection, src: int, tmp_path: Path) -> None:  # noqa: F811
-    from liquidmexx.publishing import status_of
+    from trend_intelligence.publishing import status_of
     calls: list[int] = []
 
     def handler(req: httpx.Request) -> httpx.Response:

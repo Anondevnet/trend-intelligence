@@ -1,4 +1,4 @@
-# Liquidmexx Trend Intelligence
+# Trend Intelligence
 
 [![CI](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/Anondevnet/trend-intelligence/actions/workflows/ci.yml)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue)](pyproject.toml)
@@ -16,15 +16,15 @@ Uses [uv](https://docs.astral.sh/uv/) and Python 3.11. Tests mock all HTTP and t
 git clone https://github.com/Anondevnet/trend-intelligence && cd trend-intelligence
 uv sync                          # .venv with pinned deps, including the dev group
 uv run pytest                    # 231 offline tests
-uv run liquidmexx migrate        # create the local SQLite store in data/
-uv run liquidmexx score          # deterministic trend scores from stored history (no network)
+uv run trend-intel migrate       # create the local SQLite store in data/
+uv run trend-intel score         # deterministic trend scores from stored history (no network)
 ```
 
 Sources, collection, and scheduling are in [Install](#install) and [Operate](#operate).
 
 ## Overview
 
-A local-first crypto × AI trend intelligence platform for the [@Liquidmexx](https://x.com/Liquidmexx) account.
+A local-first crypto × AI trend intelligence platform.
 It collects signals from public sources and stores them in a history that is never edited.
 It then scores which topics are *accelerating* rather than merely popular, and backtests those predictions honestly.
 Later stages draft original, sourced content for review and posting.
@@ -57,27 +57,27 @@ From the repository root:
 ```bash
 uv sync                                   # creates .venv with pinned deps
 cp config/env.template .env && chmod 600 .env   # then fill in what you have (all optional)
-uv run liquidmexx migrate                 # creates data/liquidmexx.db
-uv run liquidmexx sources                 # shows which sources are enabled / have credentials
+uv run trend-intel migrate                # creates data/trend_intel.db
+uv run trend-intel sources                # shows which sources are enabled / have credentials
 ```
 
 ## Operate
 
 ```bash
-uv run liquidmexx collect --due           # run every source whose interval has elapsed
-uv run liquidmexx collect --source github # run one source now
-uv run liquidmexx link                    # link new items to trends/aliases (also runs after collect)
-uv run liquidmexx score                   # deterministic trend scores from stored history (no network)
-uv run liquidmexx backtest                # point-in-time backtests (1/7/30 days) vs baselines
-uv run liquidmexx compare                 # Stage 6 detector comparison (refuses before 7+ live days)
-uv run liquidmexx intel crypto            # Stage 7 report from stored data (also: intel ai, --as-of, --json)
-uv run liquidmexx dashboard               # read-only dashboard at http://127.0.0.1:8741/ (Ctrl+C to stop)
-uv run liquidmexx backfill github-stars   # honest star-history backfill from starred_at timestamps
-uv run liquidmexx backfill hackernews --days 30
-uv run liquidmexx queue list              # post drafts awaiting review (approval is interactive only)
-uv run liquidmexx posting status          # mode (off), kill switch, live opt-in
-uv run liquidmexx status                  # counts, last runs, today's spend vs caps
-uv run liquidmexx backup                  # consistent SQLite snapshot into data/backups/
+uv run trend-intel collect --due          # run every source whose interval has elapsed
+uv run trend-intel collect --source github # run one source now
+uv run trend-intel link                   # link new items to trends/aliases (also runs after collect)
+uv run trend-intel score                  # deterministic trend scores from stored history (no network)
+uv run trend-intel backtest               # point-in-time backtests (1/7/30 days) vs baselines
+uv run trend-intel compare                # Stage 6 detector comparison (refuses before 7+ live days)
+uv run trend-intel intel crypto           # Stage 7 report from stored data (also: intel ai, --as-of, --json)
+uv run trend-intel dashboard              # read-only dashboard at http://127.0.0.1:8741/ (Ctrl+C to stop)
+uv run trend-intel backfill github-stars  # honest star-history backfill from starred_at timestamps
+uv run trend-intel backfill hackernews --days 30
+uv run trend-intel queue list             # post drafts awaiting review (approval is interactive only)
+uv run trend-intel posting status         # mode (off), kill switch, live opt-in
+uv run trend-intel status                 # counts, last runs, today's spend vs caps
+uv run trend-intel backup                 # consistent SQLite snapshot into data/backups/
 ```
 
 Scheduled collection uses launchd. Install it yourself with the commands in [`docs/operations.md`](docs/operations.md).

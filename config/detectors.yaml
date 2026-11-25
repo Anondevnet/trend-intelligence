@@ -41,7 +41,7 @@ ensemble:
   k: 10
   min_train_dates: 5
 
-# Comparison report (`liquidmexx compare`). Refuses to run before enough live data exists.
+# Comparison report (`trend-intel compare`). Refuses to run before enough live data exists.
 comparison:
   baseline: volume_only
   k: 10

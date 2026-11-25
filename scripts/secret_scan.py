@@ -33,7 +33,7 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 # Paths that must be ignored by git.
-MUST_BE_IGNORED = [".env", "data/liquidmexx.db", "data/backups/x.db", "logs/x.log",
+MUST_BE_IGNORED = [".env", "data/trend_intel.db", "data/backups/x.db", "logs/x.log",
                    "backups/x.db", "x.db"]
 
 SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".lock"}

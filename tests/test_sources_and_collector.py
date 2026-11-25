@@ -9,16 +9,16 @@ import httpx
 import pytest
 import respx
 
-from liquidmexx.backfill import daily_cumulative
-from liquidmexx.collector import is_due, persist, run_source
-from liquidmexx.config import SourceConfig, load_budgets, load_sources
-from liquidmexx.costs.budget import BudgetGuard
-from liquidmexx.settings import Settings
-from liquidmexx.sources.base import CollectResult
-from liquidmexx.sources.http import PoliteClient, SourceHTTPError
-from liquidmexx.store import Observation, RawItem, RunStats, Store
-from liquidmexx.timeutil import now_iso
 from tests.conftest import no_sleep
+from trend_intelligence.backfill import daily_cumulative
+from trend_intelligence.collector import is_due, persist, run_source
+from trend_intelligence.config import SourceConfig, load_budgets, load_sources
+from trend_intelligence.costs.budget import BudgetGuard
+from trend_intelligence.settings import Settings
+from trend_intelligence.sources.base import CollectResult
+from trend_intelligence.sources.http import PoliteClient, SourceHTTPError
+from trend_intelligence.store import Observation, RawItem, RunStats, Store
+from trend_intelligence.timeutil import now_iso
 
 ARXIV_ATOM = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">

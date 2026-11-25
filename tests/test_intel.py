@@ -9,13 +9,20 @@ from typing import Any
 
 import pytest
 
-from liquidmexx import cli
-from liquidmexx.config import load_intel, rss_feed_categories
-from liquidmexx.intel import build_report, classify, is_rumor, metric_movers, new_items, render
-from liquidmexx.intel import movers as movers_mod
-from liquidmexx.intel import reports as reports_mod
-from liquidmexx.store import Observation, RawItem
 from tests.test_scoring import CRED, T, World, at, cfg
+from trend_intelligence import cli
+from trend_intelligence.config import load_intel, rss_feed_categories
+from trend_intelligence.intel import (
+    build_report,
+    classify,
+    is_rumor,
+    metric_movers,
+    new_items,
+    render,
+)
+from trend_intelligence.intel import movers as movers_mod
+from trend_intelligence.intel import reports as reports_mod
+from trend_intelligence.store import Observation, RawItem
 
 FEEDS = {"coindesk": "crypto", "hf_blog": "ai"}
 

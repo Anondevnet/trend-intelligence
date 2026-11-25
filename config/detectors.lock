@@ -1,8 +1,11 @@
 # Pre-registration lock for the Stage 6 comparison (added before any comparison run).
-# `liquidmexx compare` refuses to run unless config/detectors.yaml hashes to this value.
+# `trend-intel compare` refuses to run unless config/detectors.yaml hashes to this value.
 # Changing detector settings after seeing results is not allowed; a deliberate, pre-registered
 # change needs a new lock commit made BEFORE the next comparison run, with the reason below.
-sha256: aba394f7c719600a179c368f884eac737eb074515e7d72cd8f7b1279898f6f53
+sha256: 74e74866253691bfa5c855bc463325cd41095a028ad04aa7c158de107c1094db
 locked_from_commit: 1c5f8bc
 locked_at: 2026-11-19
 reason: initial settings, fixed before any comparison run
+amended_at: 2026-11-25
+amended_reason: comment-only edit (CLI renamed to trend-intel in one comment); no detector settings changed; still before any comparison run
+previous_sha256: aba394f7c719600a179c368f884eac737eb074515e7d72cd8f7b1279898f6f53

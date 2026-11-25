@@ -10,15 +10,15 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from liquidmexx.config import load_budgets, load_sources
-from liquidmexx.costs.budget import BudgetGuard
-from liquidmexx.db import connect, migrate
-from liquidmexx.settings import Settings
-from liquidmexx.sources import ADAPTERS
-from liquidmexx.sources.base import CollectContext
-from liquidmexx.sources.http import PoliteClient
-from liquidmexx.sources.x import XAdapter, post_read_price
-from liquidmexx.store import Store
+from trend_intelligence.config import load_budgets, load_sources
+from trend_intelligence.costs.budget import BudgetGuard
+from trend_intelligence.db import connect, migrate
+from trend_intelligence.settings import Settings
+from trend_intelligence.sources import ADAPTERS
+from trend_intelligence.sources.base import CollectContext
+from trend_intelligence.sources.http import PoliteClient
+from trend_intelligence.sources.x import XAdapter, post_read_price
+from trend_intelligence.store import Store
 
 T = "2026-11-20T12:00:00.000000Z"
 
@@ -26,7 +26,7 @@ T = "2026-11-20T12:00:00.000000Z"
 def settings(token: bool = True, live: str | None = "enabled") -> Settings:
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     s.x_bearer_token = SecretStr("test-bearer") if token else None
-    s.liquidmexx_live_x = live
+    s.trend_intel_live_x = live
     return s
 
 

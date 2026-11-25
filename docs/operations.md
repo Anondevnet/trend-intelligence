@@ -4,8 +4,8 @@
 
 ```bash
 cd ~/trend-intelligence
-zsh scripts/launchd/install.sh      # installs com.liquidmexx.collect (every 15 min) + com.liquidmexx.backup (03:30 daily)
-launchctl print gui/$(id -u)/com.liquidmexx.collect | grep -E 'state|last exit'
+zsh scripts/launchd/install.sh      # installs com.trendintel.collect (every 15 min) + com.trendintel.backup (03:30 daily)
+launchctl print gui/$(id -u)/com.trendintel.collect | grep -E 'state|last exit'
 tail -f data/logs/collect.log
 ```
 
@@ -21,33 +21,33 @@ A failing source is recorded as `error` or `partial` and doesn't stop the others
 ## Health checks
 
 ```bash
-uv run liquidmexx status    # row counts, last run per source (with errors), spend vs caps, top trends
-uv run liquidmexx sources   # enabled / usable / credentials present (true or false only, never values)
-uv run liquidmexx score     # score trends now from stored history (no network); stores a run
-uv run liquidmexx score --as-of 2026-11-12T12:00:00Z --no-save   # what we knew then
-uv run liquidmexx score --verify 2                               # recompute run 2 exactly
-uv run liquidmexx backtest                                       # 1/7/30-day backtests, all detectors
-uv run liquidmexx intel crypto                                   # Stage 7 report (also: intel ai)
-uv run liquidmexx dashboard                                      # read-only page at http://127.0.0.1:8741/
-uv run liquidmexx posting status                                 # posting mode, kill switch
-uv run liquidmexx posting kill --reason "..."                    # emergency stop for all publishing
+uv run trend-intel status   # row counts, last run per source (with errors), spend vs caps, top trends
+uv run trend-intel sources  # enabled / usable / credentials present (true or false only, never values)
+uv run trend-intel score    # score trends now from stored history (no network); stores a run
+uv run trend-intel score --as-of 2026-11-12T12:00:00Z --no-save  # what we knew then
+uv run trend-intel score --verify 2                              # recompute run 2 exactly
+uv run trend-intel backtest                                      # 1/7/30-day backtests, all detectors
+uv run trend-intel intel crypto                                  # Stage 7 report (also: intel ai)
+uv run trend-intel dashboard                                     # read-only page at http://127.0.0.1:8741/
+uv run trend-intel posting status                                # posting mode, kill switch
+uv run trend-intel posting kill --reason "..."                   # emergency stop for all publishing
 ```
 
 ## Backups
 
-- `uv run liquidmexx backup` takes a consistent online snapshot using SQLite's backup API. It writes to `data/backups/` and keeps the newest 7.
+- `uv run trend-intel backup` takes a consistent online snapshot using SQLite's backup API. It writes to `data/backups/` and keeps the newest 7.
 - Migrations write a `pre-migrate` snapshot automatically when the database already holds data.
 
 ## Recovery
 
 1. Stop the scheduler: `zsh scripts/launchd/uninstall.sh`.
-2. Check the database: `sqlite3 data/liquidmexx.db "PRAGMA integrity_check;"`.
+2. Check the database: `sqlite3 data/trend_intel.db "PRAGMA integrity_check;"`.
 3. If it's corrupt, **move** the bad file aside. Don't delete it.
    Then restore the newest good snapshot:
    ```bash
-   mv data/liquidmexx.db data/liquidmexx.db.corrupt-$(date +%Y%m%d%H%M)
-   cp data/backups/<newest>.db data/liquidmexx.db
-   uv run liquidmexx migrate
+   mv data/trend_intel.db data/trend_intel.db.corrupt-$(date +%Y%m%d%H%M)
+   cp data/backups/<newest>.db data/trend_intel.db
+   uv run trend-intel migrate
    ```
 4. Reinstall the scheduler. Data collected between the snapshot and the failure is lost, and it is **not** reconstructed or invented.
 

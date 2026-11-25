@@ -13,18 +13,18 @@ from typing import Any
 
 import pytest
 
-from liquidmexx import cli
-from liquidmexx.config import load_budgets, load_publishing
-from liquidmexx.costs.budget import BudgetGuard, LLMUsage
-from liquidmexx.dashboard import HOST, make_server
-from liquidmexx.dashboard.data import connect_readonly, overview
-from liquidmexx.dashboard.render import overview_page, report_page
-from liquidmexx.dashboard.server import load_config, make_handler, render_path
-from liquidmexx.db import connect, migrate
-from liquidmexx.intel import build_report
-from liquidmexx.publishing import create_draft
 from tests.test_intel import FEEDS, narrative, raw
 from tests.test_scoring import CRED, T, World, at, cfg
+from trend_intelligence import cli
+from trend_intelligence.config import load_budgets, load_publishing
+from trend_intelligence.costs.budget import BudgetGuard, LLMUsage
+from trend_intelligence.dashboard import HOST, make_server
+from trend_intelligence.dashboard.data import connect_readonly, overview
+from trend_intelligence.dashboard.render import overview_page, report_page
+from trend_intelligence.dashboard.server import load_config, make_handler, render_path
+from trend_intelligence.db import connect, migrate
+from trend_intelligence.intel import build_report
+from trend_intelligence.publishing import create_draft
 
 
 def seed(conn: sqlite3.Connection) -> None:
@@ -219,16 +219,17 @@ def test_cli_has_no_host_option(capsys: pytest.CaptureFixture[str]) -> None:
 def test_dashboard_never_touches_network_or_llm_code() -> None:
     import inspect
 
-    from liquidmexx.dashboard import data, render, server
+    from trend_intelligence.dashboard import data, render, server
     for mod in (data, render, server):
         src: Any = inspect.getsource(mod)
-        for banned in ("import httpx", "import anthropic", "from anthropic", "liquidmexx.llm",
-                       "liquidmexx.sources", "Publisher(", "urllib.request", "socket."):
+        for banned in ("import httpx", "import anthropic", "from anthropic",
+                       "trend_intelligence.llm", "trend_intelligence.sources", "Publisher(",
+                       "urllib.request", "socket."):
             assert banned not in src, (mod.__name__, banned)
 
 
 def test_busy_port_fails_with_a_message(capsys: pytest.CaptureFixture[str]) -> None:
-    from liquidmexx.dashboard import serve
+    from trend_intelligence.dashboard import serve
 
     holder = ThreadingHTTPServer((HOST, 0), BaseHTTPRequestHandler)
     try:
@@ -254,7 +255,7 @@ def test_command_center_tiles_are_honest(db: Path) -> None:
 
 
 def test_lifecycle_rules_are_descriptive() -> None:
-    from liquidmexx.dashboard.data import lifecycle
+    from trend_intelligence.dashboard.data import lifecycle
     assert lifecycle(2, 0, 2, 0) == "Detection"
     assert lifecycle(10, 0, 8, 0) == "Accelerating"
     assert lifecycle(10, 8, 3, 2) == "Emerging"
@@ -262,7 +263,7 @@ def test_lifecycle_rules_are_descriptive() -> None:
 
 
 def _mastodon_world(path: Path, posts: int) -> sqlite3.Connection:
-    from liquidmexx.store import Observation, RawItem, Store
+    from trend_intelligence.store import Observation, RawItem, Store
     conn = connect(path)
     migrate(conn)
     store = Store(conn)
@@ -282,7 +283,7 @@ def _mastodon_world(path: Path, posts: int) -> sqlite3.Connection:
 
 
 def test_social_tiles_use_stored_mastodon_engagement(tmp_path: Path) -> None:
-    from liquidmexx.dashboard.data import command, social
+    from trend_intelligence.dashboard.data import command, social
     conn = _mastodon_world(tmp_path / "s.db", posts=6)
     s = social(conn, T)
     assert s is not None
@@ -297,7 +298,7 @@ def test_social_tiles_use_stored_mastodon_engagement(tmp_path: Path) -> None:
 
 
 def test_acceleration_waits_for_enough_history(tmp_path: Path) -> None:
-    from liquidmexx.dashboard.data import command
+    from trend_intelligence.dashboard.data import command
     conn = _mastodon_world(tmp_path / "s2.db", posts=3)
     kpis = {k.label: k for k in command(conn, load_config(), T).kpis}
     assert kpis["Engagement acceleration"].value == "collecting"
@@ -323,8 +324,8 @@ def test_help_page_explains_tiles_and_whats_off(db: Path) -> None:
 
 
 def test_social_pulse_series_and_panel(tmp_path: Path) -> None:
-    from liquidmexx.dashboard.data import overview, social
-    from liquidmexx.dashboard.render import overview_page
+    from trend_intelligence.dashboard.data import overview, social
+    from trend_intelligence.dashboard.render import overview_page
     conn = _mastodon_world(tmp_path / "s3.db", posts=6)
     s = social(conn, T)
     assert s is not None
@@ -335,8 +336,8 @@ def test_social_pulse_series_and_panel(tmp_path: Path) -> None:
 
 
 def test_social_pulse_without_posts_says_so() -> None:
-    from liquidmexx.dashboard.data import Command
-    from liquidmexx.dashboard.render import _pulse
+    from trend_intelligence.dashboard.data import Command
+    from trend_intelligence.dashboard.render import _pulse
     assert "No social posts stored yet" in _pulse(Command([], [], [0] * 24, 0, None))
 
 

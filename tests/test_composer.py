@@ -9,16 +9,16 @@ from typing import Any
 
 import pytest
 
-from liquidmexx.config import load_publishing
-from liquidmexx.dashboard.data import connect_readonly, drafts_view
-from liquidmexx.dashboard.render import drafts_page
-from liquidmexx.dashboard.server import load_config, render_path
-from liquidmexx.db import connect, migrate
-from liquidmexx.publishing import status_of
-from liquidmexx.publishing.composer import compose, hook_style, save
-from liquidmexx.store import Observation, RawItem, Store
-from liquidmexx.trends.identity import seed_taxonomy
 from tests.test_scoring import T, at
+from trend_intelligence.config import load_publishing
+from trend_intelligence.dashboard.data import connect_readonly, drafts_view
+from trend_intelligence.dashboard.render import drafts_page
+from trend_intelligence.dashboard.server import load_config, render_path
+from trend_intelligence.db import connect, migrate
+from trend_intelligence.publishing import status_of
+from trend_intelligence.publishing.composer import compose, hook_style, save
+from trend_intelligence.store import Observation, RawItem, Store
+from trend_intelligence.trends.identity import seed_taxonomy
 
 TAXO = {"categories": {"ai": [{"name": "Agent payments", "aliases": ["agent payments"]}]}}
 

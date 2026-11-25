@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from liquidmexx.config import load_budgets, load_models, load_pricing
+from trend_intelligence.config import load_budgets, load_models, load_pricing
 
 CONFIG = Path(__file__).resolve().parents[1] / "config"
 

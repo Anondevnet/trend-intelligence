@@ -15,10 +15,11 @@ from typing import Any
 
 import pytest
 
-from liquidmexx import cli
-from liquidmexx.config import PublishingConfig, load_budgets, load_publishing
-from liquidmexx.costs.budget import BudgetGuard
-from liquidmexx.publishing import (
+from tests.test_scoring import World
+from trend_intelligence import cli
+from trend_intelligence.config import PublishingConfig, load_budgets, load_publishing
+from trend_intelligence.costs.budget import BudgetGuard
+from trend_intelligence.publishing import (
     DryRunTransport,
     Publisher,
     QueueError,
@@ -29,11 +30,10 @@ from liquidmexx.publishing import (
     release_kill_switch,
     status_of,
 )
-from liquidmexx.publishing.gate import check_text
-from liquidmexx.publishing.queue import log_event
-from liquidmexx.settings import PROJECT_ROOT
-from liquidmexx.timeutil import parse_iso, to_iso
-from tests.test_scoring import World
+from trend_intelligence.publishing.gate import check_text
+from trend_intelligence.publishing.queue import log_event
+from trend_intelligence.settings import PROJECT_ROOT
+from trend_intelligence.timeutil import parse_iso, to_iso
 
 NOW = "2026-11-20T12:00:00.000000Z"
 GOOD = "Three new MCP servers for Solana wallets were listed in the registry this week."
@@ -118,15 +118,15 @@ def test_config_refuses_to_drop_human_approval() -> None:
 
 
 def test_live_opt_in_needs_the_exact_value(monkeypatch: pytest.MonkeyPatch) -> None:
-    from liquidmexx.settings import Settings
+    from trend_intelligence.settings import Settings
     for value, expected in (("enabled", True), ("true", False), ("1", False), ("", False)):
-        monkeypatch.setenv("LIQUIDMEXX_LIVE_POSTING", value)
+        monkeypatch.setenv("TREND_INTEL_LIVE_POSTING", value)
         assert Settings(_env_file=None).live_posting_opt_in is expected  # type: ignore[call-arg]
 
 
 def test_only_one_module_can_write_to_x() -> None:
     """Reads live in sources/x.py (search only); the one write path is publishing/x_transport."""
-    src_dir = PROJECT_ROOT / "src" / "liquidmexx"
+    src_dir = PROJECT_ROOT / "src" / "trend_intelligence"
     allowed = {("sources", "x.py"), ("publishing", "x_transport.py")}
     for path in src_dir.rglob("*.py"):
         text = path.read_text(encoding="utf-8").lower()
@@ -174,7 +174,7 @@ def test_live_needs_both_switches_and_a_live_transport(conn: sqlite3.Connection,
     did = approved(conn, src)
     t = FakeLiveTransport()
     out = publisher(conn, tmp_path, "live", t, opt_in=False).publish(did, "x", now=NOW)
-    assert "LIQUIDMEXX_LIVE_POSTING" in out.reason
+    assert "TREND_INTEL_LIVE_POSTING" in out.reason
     out = publisher(conn, tmp_path, "live", DryRunTransport(), opt_in=True).publish(
         did, "x", now=NOW)
     assert "no live X transport" in out.reason

@@ -10,12 +10,12 @@ from typing import Any
 
 import pytest
 
-from liquidmexx.backfill import backfill_hackernews
-from liquidmexx.config import load_scoring, source_credibility
-from liquidmexx.scoring import Scorer, verify_run
-from liquidmexx.scoring import engine as engine_mod
-from liquidmexx.store import Observation, RawItem, Store
-from liquidmexx.timeutil import parse_iso, to_iso
+from trend_intelligence.backfill import backfill_hackernews
+from trend_intelligence.config import load_scoring, source_credibility
+from trend_intelligence.scoring import Scorer, verify_run
+from trend_intelligence.scoring import engine as engine_mod
+from trend_intelligence.store import Observation, RawItem, Store
+from trend_intelligence.timeutil import parse_iso, to_iso
 
 T = "2026-11-01T12:00:00.000000Z"
 CRED = {"hackernews": 0.6, "rss": 0.6, "github": 0.7, "defillama": 0.9}

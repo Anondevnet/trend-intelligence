@@ -3,7 +3,7 @@
 ## Data flow
 
 ```
-launchd (every 15 min) → liquidmexx collect --due
+launchd (every 15 min) → trend-intel collect --due
    └─ for each enabled source whose interval has elapsed:
         adapter.collect()  ── PoliteClient (HTTPS only, pacing, retries, usage ledger)
         persist()          ── one transaction per run: raw_items + observations
@@ -54,7 +54,7 @@ When the database already holds data, a backup is written to `data/backups/` bef
 
 ## Trend scoring (Stage 4, scorer s2)
 
-`liquidmexx score [--as-of ISO] [--no-save] [--verify RUN_ID]` is deterministic. It uses no LLM and no network, and reads only rows with `available_at <= as_of`.
+`trend-intel score [--as-of ISO] [--no-save] [--verify RUN_ID]` is deterministic. It uses no LLM and no network, and reads only rows with `available_at <= as_of`.
 
 | Sub-score | Weight | How it's computed |
 |---|---|---|
@@ -73,7 +73,7 @@ When the database already holds data, a backup is written to `data/backups/` bef
 
 ## Backtesting (Stage 5)
 
-`liquidmexx backtest [--horizon N] [--no-save]` evaluates detectors at daily times T (12:00 UTC) for horizons of 1, 7 and 30 days.
+`trend-intel backtest [--horizon N] [--no-save]` evaluates detectors at daily times T (12:00 UTC) for horizons of 1, 7 and 30 days.
 
 | Guard | How |
 |---|---|
@@ -103,7 +103,7 @@ Measured on Hacker News only, with every input from backfill. The scorer is **no
 
 The scorer finds trends that are busy *now*, and those spikes usually revert. Plain mention volume predicts next-day and next-week emergence better on this data.
 The sample is small (16 positives at 1 day, 28 at 7 days) and relies on the biased backfill, so neither detector's numbers are reliable yet.
-Re-run `liquidmexx backtest` once live collection has 7 or more days of data from every source. Until a detector beats `volume_only` out of sample, scores are descriptive only and must not drive posting.
+Re-run `trend-intel backtest` once live collection has 7 or more days of data from every source. Until a detector beats `volume_only` out of sample, scores are descriptive only and must not drive posting.
 
 ## Detector comparison (Stage 6)
 
@@ -117,13 +117,13 @@ Re-run `liquidmexx backtest` once live collection has 7 or more days of data fro
 
 The settings were fixed before any comparison was run. They must not be tuned to the backtest.
 
-**Pre-registration lock.** `config/detectors.lock` holds the SHA-256 of `config/detectors.yaml`. It was committed before the first comparison run, and `liquidmexx compare` refuses to run if the file no longer matches.
+**Pre-registration lock.** `config/detectors.lock` holds the SHA-256 of `config/detectors.yaml`. It was committed before the first comparison run, and `trend-intel compare` refuses to run if the file no longer matches.
 
 - Detector settings are not changed after seeing results.
 - Every comparison outcome is reported as it comes out, including the case where nothing beats `volume_only`.
 - A deliberate change needs a new lock committed *before* the next run, with its reason recorded.
 
-`liquidmexx compare` runs every detector and gives each one a verdict against `volume_only`:
+`trend-intel compare` runs every detector and gives each one a verdict against `volume_only`:
 
 - **INSUFFICIENT DATA** if there are fewer than 7 evaluation dates, fewer than 20 positive labels, the backfill share is above 0.5, or there is no usable history.
 - **BEATS BASELINE** only if the detector has more top-10 hits than the baseline on more dates than it has fewer (one-sided sign test, p ≤ 0.10) **and** its walk-forward F1 is at least the baseline's.
@@ -137,7 +137,7 @@ Each verdict comes with recall@10, false-positive rate@10 and walk-forward F1. L
 
 ## Crypto and AI intelligence (Stage 7)
 
-`liquidmexx intel crypto|ai [--as-of ISO] [--json]` prints a report rebuilt from stored history.
+`trend-intel intel crypto|ai [--as-of ISO] [--json]` prints a report rebuilt from stored history.
 It uses no network and no LLM, saves nothing, and reads only rows with `available_at <= as_of`, so
 a past report can be rebuilt exactly (a test checks that later data doesn't change it). Settings
 are in `config/intel.yaml`.
@@ -177,7 +177,7 @@ are in `config/intel.yaml`.
 
 ## Dashboard (Stage 9)
 
-`liquidmexx dashboard [--port 8741]` serves a local, read-only page at `http://127.0.0.1:8741/`.
+`trend-intel dashboard [--port 8741]` serves a local, read-only page at `http://127.0.0.1:8741/`.
 It uses only the Python standard library (no new dependencies) and renders HTML on the server,
 with no JavaScript.
 
@@ -186,7 +186,7 @@ with no JavaScript.
 | `/` | Live days per source toward the Stage 6 comparison, lock status and readiness; top trends (latest stored scores plus 24h mentions by source); posting mode, kill switch and draft queue; spend today against daily and per-tier caps; last collection run per source |
 | `/intel/crypto`, `/intel/ai` | The Stage 7 reports |
 
-- **Every number comes from stored data.** Each page load reads `data/liquidmexx.db` and the
+- **Every number comes from stored data.** Each page load reads `data/trend_intel.db` and the
   config files. Nothing is cached, sampled or illustrative.
 - **Concentration flag.** Any topic where one source supplies 80% or more of its last-24h
   activity is flagged, for example `agent-payments`, which is nearly all MCP registry listings.
@@ -212,9 +212,9 @@ with no JavaScript.
 | 4 | Deterministic scorer | Done |
 | 5 | Point-in-time backtester | Done (scorer loses to `volume_only` so far) |
 | 6 | Detector comparison | Code done and settings locked; first run due 2026-11-26, see [`comparison-checklist.md`](comparison-checklist.md) |
-| 7 | Crypto and AI intelligence | Done: `liquidmexx intel crypto` and `intel ai`, descriptive reports with labelled evidence |
+| 7 | Crypto and AI intelligence | Done: `trend-intel intel crypto` and `intel ai`, descriptive reports with labelled evidence |
 | 8 | Claude research and content | Offline client done (routing, caps, validation, caching, batches); real calls off, see [`costs-and-pricing.md`](costs-and-pricing.md) |
-| 9 | Dashboard | Done: `liquidmexx dashboard`, local (127.0.0.1) and read-only |
+| 9 | Dashboard | Done: `trend-intel dashboard`, local (127.0.0.1) and read-only |
 | 10 | X publishing | Safeguards done (off, draft-only, approval-gated); live X transport behind every switch (step 1: approved drafts only), see [`publishing-safety.md`](publishing-safety.md) |
 | 11 | Engagement analytics | Planned |
 | 12 | Learning engine | Planned |

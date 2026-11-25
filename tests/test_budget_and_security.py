@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from liquidmexx.config import BudgetsConfig, load_budgets
-from liquidmexx.costs.budget import BudgetExceededError, BudgetGuard
-from liquidmexx.redaction import REDACTED, RedactingFilter, redact
-from liquidmexx.settings import PROJECT_ROOT, Settings
+from trend_intelligence.config import BudgetsConfig, load_budgets
+from trend_intelligence.costs.budget import BudgetExceededError, BudgetGuard
+from trend_intelligence.redaction import REDACTED, RedactingFilter, redact
+from trend_intelligence.settings import PROJECT_ROOT, Settings
 
 
 def guard(conn: sqlite3.Connection, cap: float = 0.15) -> BudgetGuard:

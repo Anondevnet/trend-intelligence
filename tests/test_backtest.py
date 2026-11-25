@@ -9,10 +9,10 @@ from typing import Any
 
 import pytest
 
-from liquidmexx.backtest import Backtester, spearman
-from liquidmexx.config import load_backtest
-from liquidmexx.timeutil import parse_iso
 from tests.test_scoring import CRED, World, at, cfg
+from trend_intelligence.backtest import Backtester, spearman
+from trend_intelligence.config import load_backtest
+from trend_intelligence.timeutil import parse_iso
 
 
 def bt_cfg(**over: Any) -> dict[str, Any]:

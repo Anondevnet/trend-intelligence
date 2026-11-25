@@ -1,0 +1,5 @@
+"""Stage 5: point-in-time backtesting of trend detectors."""
+
+from trend_intelligence.backtest.engine import Backtester, BacktestResult, Point, spearman
+
+__all__ = ["BacktestResult", "Backtester", "Point", "spearman"]

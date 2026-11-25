@@ -12,10 +12,12 @@ from typing import Any
 
 import pytest
 
-from liquidmexx import cli
-from liquidmexx.backtest import Backtester
-from liquidmexx.config import load_detectors
-from liquidmexx.detectors import (
+from tests.test_backtest import bt_cfg, hn_days, world_with_coverage
+from tests.test_scoring import CRED, World, at, cfg
+from trend_intelligence import cli
+from trend_intelligence.backtest import Backtester
+from trend_intelligence.config import load_detectors
+from trend_intelligence.detectors import (
     BASELINE,
     BEATS,
     INSUFFICIENT,
@@ -28,11 +30,9 @@ from liquidmexx.detectors import (
     sign_test_p,
     signal_sum,
 )
-from liquidmexx.detectors.core import percentile_ranks, signal_points, top_k_edge
-from liquidmexx.scoring.engine import Mention
-from liquidmexx.timeutil import parse_iso
-from tests.test_backtest import bt_cfg, hn_days, world_with_coverage
-from tests.test_scoring import CRED, World, at, cfg
+from trend_intelligence.detectors.core import percentile_ranks, signal_points, top_k_edge
+from trend_intelligence.scoring.engine import Mention
+from trend_intelligence.timeutil import parse_iso
 
 DCFG = load_detectors()
 
@@ -58,7 +58,7 @@ def test_shipped_detector_config_is_valid() -> None:
 def test_detector_config_rejects_bad_weights(tmp_path: Any) -> None:
     import yaml
 
-    from liquidmexx.settings import PROJECT_ROOT
+    from trend_intelligence.settings import PROJECT_ROOT
     bad = yaml.safe_load((PROJECT_ROOT / "config" / "detectors.yaml").read_text())
     bad["hotlist"]["weights"]["hotness"] = 0.9
     (tmp_path / "detectors.yaml").write_text(yaml.safe_dump(bad))
@@ -325,16 +325,16 @@ def test_compare_cli_refuses_before_enough_live_data(
 
 
 def test_shipped_detector_config_matches_the_lock() -> None:
-    from liquidmexx.detectors.comparison import check_lock
-    from liquidmexx.settings import PROJECT_ROOT
+    from trend_intelligence.detectors.comparison import check_lock
+    from trend_intelligence.settings import PROJECT_ROOT
     assert check_lock(PROJECT_ROOT / "config") is None
 
 
 def test_lock_refuses_changed_settings(tmp_path: Any) -> None:
     import shutil
 
-    from liquidmexx.detectors.comparison import check_lock
-    from liquidmexx.settings import PROJECT_ROOT
+    from trend_intelligence.detectors.comparison import check_lock
+    from trend_intelligence.settings import PROJECT_ROOT
     for name in ("detectors.yaml", "detectors.lock"):
         shutil.copy(PROJECT_ROOT / "config" / name, tmp_path / name)
     with (tmp_path / "detectors.yaml").open("a") as fh:

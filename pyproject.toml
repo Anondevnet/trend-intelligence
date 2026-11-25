@@ -1,7 +1,7 @@
 [project]
-name = "liquidmexx"
+name = "trend-intelligence"
 version = "0.1.0"
-description = "Local-first crypto x AI trend intelligence: collection, scoring, backtesting and content for @Liquidmexx"
+description = "Local-first crypto x AI trend intelligence: collection, scoring, backtesting and drafted content"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.12"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-liquidmexx = "liquidmexx.cli:main"
+trend-intel = "trend_intelligence.cli:main"
 
 [dependency-groups]
 dev = [
@@ -31,7 +31,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/liquidmexx"]
+packages = ["src/trend_intelligence"]
 
 [tool.ruff]
 line-length = 100
@@ -49,7 +49,7 @@ ignore = ["S101", "S608"]  # asserts in tests; SQL built only from internal cons
 python_version = "3.11"
 strict = true
 mypy_path = "src"
-packages = ["liquidmexx"]
+packages = ["trend_intelligence"]
 
 [[tool.mypy.overrides]]
 module = ["feedparser"]

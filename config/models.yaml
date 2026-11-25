@@ -1,11 +1,11 @@
 # LLM model routing. Model IDs and task routing live here, prices live in pricing.yaml,
 # and daily caps live in budgets.yaml (anthropic.tiers). Nothing in code hard-codes a model ID.
-# Validated at load time by liquidmexx.config.load_models(): every routed tier must exist,
+# Validated at load time by trend_intelligence.config.load_models(): every routed tier must exist,
 # every tier's model must have a price, and every tier must have a daily cap.
 
 provider: anthropic
 
-# Real API calls are OFF. They need live_calls: true here AND LIQUIDMEXX_LIVE_LLM=enabled
+# Real API calls are OFF. They need live_calls: true here AND TREND_INTEL_LIVE_LLM=enabled
 # in .env AND an ANTHROPIC_API_KEY. Until then every call is refused before any network use.
 live_calls: false
 

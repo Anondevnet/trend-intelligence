@@ -15,7 +15,7 @@ written to the audit log with its reason.
 2. **Mode is not `off`.** The shipped value is `mode: "off"`.
 3. **Live posting needs three things:**
    - `mode: "live"` in the config;
-   - `LIQUIDMEXX_LIVE_POSTING=enabled` in `.env` (only that exact value counts);
+   - `TREND_INTEL_LIVE_POSTING=enabled` in `.env` (only that exact value counts);
    - all four X OAuth values (`X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`,
      `X_ACCESS_TOKEN_SECRET`) so the live X transport can be built.
 
@@ -73,13 +73,13 @@ The patterns live in `config/publishing.yaml`. The loader refuses `require_human
 ## Commands
 
 ```bash
-uv run liquidmexx queue add --claim verified --source raw:123 --text "..."   # gate runs, never approves
-uv run liquidmexx queue list [--all]
-uv run liquidmexx queue show 4              # text, sources, full audit trail
-uv run liquidmexx queue approve 4           # interactive terminal only; you retype the id
-uv run liquidmexx queue reject 4 --reason "..."   # also withdraws an approval
-uv run liquidmexx queue publish 4           # dry-run transport only; blocked while mode is off
-uv run liquidmexx posting status|kill|unkill [--reason ...]
+uv run trend-intel queue add --claim verified --source raw:123 --text "..."  # gate runs, never approves
+uv run trend-intel queue list [--all]
+uv run trend-intel queue show 4             # text, sources, full audit trail
+uv run trend-intel queue approve 4          # interactive terminal only; you retype the id
+uv run trend-intel queue reject 4 --reason "..."  # also withdraws an approval
+uv run trend-intel queue publish 4          # dry-run transport only; blocked while mode is off
+uv run trend-intel posting status|kill|unkill [--reason ...]
 ```
 
 `unkill` removes the kill-switch file. It does not turn posting on.

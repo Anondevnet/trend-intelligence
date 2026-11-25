@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import sqlite3
 
-from liquidmexx.config import load_taxonomy
-from liquidmexx.store import RawItem, Store
-from liquidmexx.timeutil import now_iso
-from liquidmexx.trends.identity import (
+from trend_intelligence.config import load_taxonomy
+from trend_intelligence.store import RawItem, Store
+from trend_intelligence.timeutil import now_iso
+from trend_intelligence.trends.identity import (
     extract_entity_refs,
     link_new_items,
     load_rules,

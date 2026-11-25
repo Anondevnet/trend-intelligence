@@ -1,4 +1,4 @@
-# Daily spending caps (USD), enforced in code by liquidmexx.costs.budget.BudgetGuard.
+# Daily spending caps (USD), enforced in code by trend_intelligence.costs.budget.BudgetGuard.
 # The "day" is the UTC day (matches X's billing/dedup window).
 # warn_fraction: log a warning once spend crosses this share of the cap.
 

@@ -1,5 +1,5 @@
 # Source adapters. Each can be enabled/disabled independently.
-# interval_minutes: how often `liquidmexx collect --due` runs this source.
+# interval_minutes: how often `trend-intel collect --due` runs this source.
 # credibility: prior weight (0-1) used by scoring later; tuned by backtests, not by hand.
 # Sources are free public APIs, except `x` (paid per post read, off by default, capped daily).
 
@@ -125,7 +125,7 @@ mastodon:
 
 x:
   # Official X API recent search. OFF: needs x.enabled true here, X_BEARER_TOKEN and
-  # LIQUIDMEXX_LIVE_X=enabled in .env. Each post read costs unit_usd.post_read (pricing.yaml);
+  # TREND_INTEL_LIVE_X=enabled in .env. Each post read costs unit_usd.post_read (pricing.yaml);
   # budgets.yaml caps X at $0.15/day, so at most ~30 posts/day. Read-only: no writes.
   enabled: false
   interval_minutes: 240

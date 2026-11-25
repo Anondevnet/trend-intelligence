@@ -8,7 +8,7 @@ after results are seen, and every verdict is reported as printed, including when
 ## When
 
 - Earliest: **2026-11-26** (America/Detroit). Live collection started 2026-11-19.
-- `liquidmexx compare` also checks for itself. It refuses (exit 2, saves nothing) until at least
+- `trend-intel compare` also checks for itself. It refuses (exit 2, saves nothing) until at least
   2 sources have 7 or more distinct UTC days of live, non-backfill collection. Don't work around
   that refusal. If it refuses on 2026-11-26, wait and check again the next day.
 
@@ -23,7 +23,7 @@ after results are seen, and every verdict is reported as printed, including when
    ```
 2. **Collection is healthy.**
    ```bash
-   uv run liquidmexx status
+   uv run trend-intel status
    ```
    - Each source shows 7+ live days ("0 more day(s) needed") for at least 2 sources.
    - No source has been stuck in `error` for days. If one has, write it down. It goes into the
@@ -31,11 +31,11 @@ after results are seen, and every verdict is reported as printed, including when
    - `api_usage` spend is within caps, and posting shows `mode=off`, kill switch reported.
 3. **Back up the database first.**
    ```bash
-   uv run liquidmexx backup
+   uv run trend-intel backup
    ```
 4. **Run the comparison once, all horizons, saving the runs.**
    ```bash
-   uv run liquidmexx compare 2>&1 | tee data/logs/compare-2026-11-26.txt
+   uv run trend-intel compare 2>&1 | tee data/logs/compare-2026-11-26.txt
    ```
    - Exit 3 means the lock doesn't match. Stop. Do not edit the lock to make it pass.
    - Exit 2 means not enough live data yet. Nothing was saved. Try again the next day.

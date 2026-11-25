@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from liquidmexx.db import MIGRATIONS_DIR, backup, connect, migrate
-from liquidmexx.store import Observation, RawItem, Store
-from liquidmexx.timeutil import now_iso
+from trend_intelligence.db import MIGRATIONS_DIR, backup, connect, migrate
+from trend_intelligence.store import Observation, RawItem, Store
+from trend_intelligence.timeutil import now_iso
 
 
 def _seed(store: Store) -> int:

@@ -55,13 +55,13 @@ A paid Anthropic call must name a tier. `BudgetGuard.charge()` checks the tier c
 If a Haiku output fails schema validation, it is retried once on Sonnet and then flagged for review. Anything that failed a check is never auto-posted; the loader refuses a config that turns this off.
 Non-urgent work (deep research, the digest, engagement summaries, the strategy review) goes through the Batch API, and stable system prompts are cached.
 
-## Claude client (Stage 8, `liquidmexx.llm`)
+## Claude client (Stage 8, `trend_intelligence.llm`)
 
 `ClaudeClient` is the only path to the Anthropic API. It uses the official `anthropic` SDK.
 
 **Real calls are off.** They need all three of:
 - `live_calls: true` in `models.yaml`;
-- `LIQUIDMEXX_LIVE_LLM=enabled` in `.env`;
+- `TREND_INTEL_LIVE_LLM=enabled` in `.env`;
 - an `ANTHROPIC_API_KEY`.
 
 Otherwise the transport is `OfflineTransport`, which refuses every call before any network use. All tests use a scripted mock transport.

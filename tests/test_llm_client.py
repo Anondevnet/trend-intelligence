@@ -13,14 +13,14 @@ from typing import Any
 
 import pytest
 
-from liquidmexx.config import (
+from trend_intelligence.config import (
     ModelsConfig,
     load_budgets,
     load_models,
     load_pricing,
 )
-from liquidmexx.costs.budget import BudgetExceededError, BudgetGuard
-from liquidmexx.llm import (
+from trend_intelligence.costs.budget import BudgetExceededError, BudgetGuard
+from trend_intelligence.llm import (
     BatchItem,
     ClaudeClient,
     DailyTaskLimitError,
@@ -30,9 +30,9 @@ from liquidmexx.llm import (
     live_allowed,
     make_transport,
 )
-from liquidmexx.llm.pricing import Usage, cost_usd, worst_case_cost
-from liquidmexx.llm.schemas import EntityExtractionOut, PostDraftOut, json_schema
-from liquidmexx.settings import Settings
+from trend_intelligence.llm.pricing import Usage, cost_usd, worst_case_cost
+from trend_intelligence.llm.schemas import EntityExtractionOut, PostDraftOut, json_schema
+from trend_intelligence.settings import Settings
 
 PRICING = load_pricing()
 SYSTEM = "You extract entities from crypto and AI news. Return JSON only."
@@ -111,9 +111,9 @@ def test_live_needs_config_env_and_key(monkeypatch: pytest.MonkeyPatch) -> None:
     on = load_models().model_copy(update={"live_calls": True})
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-real-key")
     assert not live_allowed(on, Settings(_env_file=None))  # type: ignore[call-arg]
-    monkeypatch.setenv("LIQUIDMEXX_LIVE_LLM", "yes")
+    monkeypatch.setenv("TREND_INTEL_LIVE_LLM", "yes")
     assert not live_allowed(on, Settings(_env_file=None))  # type: ignore[call-arg]
-    monkeypatch.setenv("LIQUIDMEXX_LIVE_LLM", "enabled")
+    monkeypatch.setenv("TREND_INTEL_LIVE_LLM", "enabled")
     assert live_allowed(on, Settings(_env_file=None))  # type: ignore[call-arg]
     assert not live_allowed(load_models(), Settings(_env_file=None))  # type: ignore[call-arg]
 

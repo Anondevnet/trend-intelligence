@@ -2,7 +2,7 @@
 #
 # Posting is OFF and draft-only by default. Nothing can reach X unless ALL of these hold:
 #   1. mode: "live" below                  (default "off")
-#   2. LIQUIDMEXX_LIVE_POSTING=enabled in .env      (default unset)
+#   2. TREND_INTEL_LIVE_POSTING=enabled in .env      (default unset)
 #   3. a live X transport is installed     (none exists yet; Stage 10 proper, needs approval)
 #   4. the kill switch is not engaged      (file data/POSTING_KILL_SWITCH, or kill_switch below)
 #   5. the draft has a human approval for its exact content, newer than approval_ttl_hours,

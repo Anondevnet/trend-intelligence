@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from liquidmexx.config import BudgetsConfig
-from liquidmexx.costs.budget import BudgetExceededError, BudgetGuard, LLMUsage
-from liquidmexx.db import MIGRATIONS_DIR, connect, migrate
+from trend_intelligence.config import BudgetsConfig
+from trend_intelligence.costs.budget import BudgetExceededError, BudgetGuard, LLMUsage
+from trend_intelligence.db import MIGRATIONS_DIR, connect, migrate
 
 
 def anthropic_guard(conn: sqlite3.Connection) -> BudgetGuard:
